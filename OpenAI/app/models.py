@@ -19,4 +19,3 @@ class UserResponses(db.Model):
     name = db.Column(db.String(50), nullable=False)
     score = db.Column(db.Integer, nullable=False)
     question_id = db.Column(db.String(10), db.ForeignKey('question_bank.question_id'), nullable=False)
-

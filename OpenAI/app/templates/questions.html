@@ -7,11 +7,22 @@
 </head>
 <body>
     <h1>Answer the following questions:</h1>
-    {% if questions_text %}
-        <div>
-            <!-- Display the raw response for debugging -->
-            <pre>{{ questions_text }}</pre>
-        </div>
+    {% if questions %}
+        {% for question in questions %}
+            <div>
+                <p>{{ question.Question }}</p>
+                <form method="POST" action="/submit_answer">
+                    <input type="hidden" name="question_id" value="{{ question.Id }}">
+                    <label for="answer">Your Answer:</label>
+                    <select name="answer" id="answer">
+                        {% for key, value in question.Answers.items() %}
+                            <option value="{{ key }}">{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">Submit</button>
+                </form>
+            </div>
+        {% endfor %}
     {% else %}
         <p>No questions available for this department.</p>
     {% endif %}
