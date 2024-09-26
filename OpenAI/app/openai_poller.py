@@ -6,7 +6,7 @@ import json
 def fetch_questions(prompt):
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  # Adjust model if needed
+            model="gpt-4o-mini",  
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
@@ -31,7 +31,7 @@ def fetch_questions(prompt):
         for i, q in enumerate(questions, start=1):
             new_question_id = f"Q{last_id_num + i:03d}"  # Format the new ID as "Q###"
 
-            # Check if a question with this exact content already exists (optional)
+            # Check if a question with this exact question_id content already exists 
             existing_question = QuestionBank.query.filter_by(question=q['Question']).first()
             if existing_question:
                 print(f"Question with content '{q['Question']}' already exists, skipping.")
