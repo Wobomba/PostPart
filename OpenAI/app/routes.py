@@ -42,11 +42,6 @@ def questions():
     # Fetch questions from OpenAI
     questions_text = fetch_questions(prompt)
     
-    # Optionally parse the questions if necessary
-    # Here we assume the questions are returned as a string
-    # You might need to adapt this based on the format of the OpenAI response
-
-    # Debug: Print fetched questions
     print(f"Questions fetched: {questions_text}")
 
     return render_template('questions.html', questions_text=questions_text)
