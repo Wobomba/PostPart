@@ -5,43 +5,40 @@ import json
 
 def fetch_questions(prompt):
     try:
+        # Make a request to OpenAI
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  
+            model="gpt-4o",  # Replace with the appropriate model
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=1500  # Adjust the max tokens as needed
+            max_tokens=1500
         )
 
+        # Parse the OpenAI response
         questions_text = response.choices[0].message['content']
         start_index = questions_text.find('[')
         end_index = questions_text.rfind(']') + 1
         json_text = questions_text[start_index:end_index]
         questions = json.loads(json_text)
 
-        # Get the highest existing question_id in the database
+        # Fetch the last question ID in the database
         last_question = QuestionBank.query.order_by(QuestionBank.question_id.desc()).first()
-        if last_question:
-            last_id_num = int(last_question.question_id[1:])  # Extract the numeric part (e.g., "001")
-        else:
-            last_id_num = 0  # Start from 0 if no questions exist
+        last_id_num = int(last_question.question_id[1:]) if last_question else 0
 
-        # Insert each question with a new unique ID
+        # Save questions to the database
         for i, q in enumerate(questions, start=1):
-            new_question_id = f"Q{last_id_num + i:03d}"  # Format the new ID as "Q###"
-
-            # Check if a question with this exact question_id content already exists 
+            new_question_id = f"Q{last_id_num + i:03d}"  # Generate a new ID
             existing_question = QuestionBank.query.filter_by(question=q['Question']).first()
+
             if existing_question:
-                print(f"Question with content '{q['Question']}' already exists, skipping.")
+                print(f"DEBUG: Question '{q['Question']}' already exists, skipping.")
                 continue
 
-            # Add new question with a unique ID
             new_question = QuestionBank(
                 question_id=new_question_id,
                 question=q['Question'],
-                answers=json.dumps(q['Answers']),  # Convert dict to JSON string
+                answers=json.dumps(q['Answers']),
                 correct_answer=q['Correct_answer'],
                 passing_score=q['Passing_score'],
                 failing_score=q['Failing_score'],
@@ -50,14 +47,13 @@ def fetch_questions(prompt):
             )
             db.session.add(new_question)
 
-        # Commit the new questions to the database
         db.session.commit()
-
+        print(f"DEBUG: Fetched and saved {len(questions)} questions.")
         return questions
 
     except json.JSONDecodeError as e:
-        print(f"Error parsing JSON: {e}")
+        print(f"ERROR: Failed to parse JSON: {e}")
         return None
     except Exception as e:
-        print(f"Error fetching questions: {e}")
+        print(f"ERROR: OpenAI API or database issue: {e}")
         return None
