@@ -1,12 +1,12 @@
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, jsonify, request, render_template, redirect, url_for
 from app.openai_poller import fetch_questions
 from app.models import QuestionBank
 from app import db
 import json
 
-poll = Blueprint('poll', __name__)
+poll_bp = Blueprint('poll', __name__)
 
-@poll.route('/')
+@poll_bp.route('/')
 def landing_page():
     """
     Renders the landing page where users select their department.
@@ -21,18 +21,16 @@ def landing_page():
     ]
     return render_template('landing.html', departments=departments)
 
-@poll.route('/fetch', methods=['POST'])
+@poll_bp.route('/poll_questions', methods=['POST'])
 def poll_questions():
     """
     Fetches multiple-choice questions from OpenAI based on the provided department
     and saves them to the database.
     """
-    # Extract the department from the request
-    department = request.json.get('department', '').strip()
+    # Extract the department from the form request
+    department = request.form.get('department', '').strip()
     if not department:
         return jsonify({"error": "Department is required"}), 400
-
-    print(f"DEBUG: Polling questions for department: {department}")
 
     # Define the OpenAI prompt
     prompt = f"""

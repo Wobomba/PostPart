@@ -7,7 +7,7 @@ def fetch_questions(prompt):
     try:
         # Make a request to OpenAI
         response = openai.ChatCompletion.create(
-            model="gpt-4o",  # Replace with the appropriate model
+            model="gpt-4o",  
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}

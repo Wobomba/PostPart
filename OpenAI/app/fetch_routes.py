@@ -1,13 +1,10 @@
-from flask import Blueprint, jsonify, request
-from app.models import QuestionBank, UserResponses
+from flask import Blueprint, jsonify, render_template, request, session, url_for, redirect
+from app.models import QuestionBank, UserResponses, User
 from app import db
-from datetime import datetime
-import json
 
-# Blueprint for fetch-related routes
-fetch = Blueprint('fetch', __name__)
+fetch_bp = Blueprint('fetch', __name__)
 
-@fetch.route('/questions', methods=['GET'])
+@fetch_bp.route('/questions', methods=['GET'])
 def fetch_questions():
     """
     Fetch questions for a specific department.
@@ -16,73 +13,87 @@ def fetch_questions():
     if not department:
         return jsonify({"error": "Department is required"}), 400
 
-    print(f"DEBUG: Fetching questions for department '{department}'")
-
-    # Query questions with case-insensitive partial matching
-    questions = QuestionBank.query.filter(
-        QuestionBank.department.ilike(f"%{department}%")
-    ).all()
-
-    print(f"DEBUG: Questions fetched: {questions}")
-
+    questions = QuestionBank.query.filter_by(department=department).all()
     if not questions:
-        return jsonify({"error": f"No questions available for department {department}"}), 404
+        return jsonify({"error": "No questions available for this department."}), 404
 
-    formatted_questions = [
-        {
-            "question": q.question,
-            "options": [
-                {"text": answer, "correct": key == q.correct_answer}
-                for key, answer in json.loads(q.answers).items()
-            ],
-        }
-        for q in questions
-    ]
+    return jsonify({
+        "questions": [
+            {
+                "id": q.id,
+                "question": q.question,
+                "options": q.options,
+            }
+            for q in questions
+        ]
+    })
 
-    return jsonify(formatted_questions)
-
-@fetch.route('/submit', methods=['POST'])
-def submit_answer():
+@fetch_bp.route('/submit_response', methods=['POST'])
+def submit_response():
     """
-    Submit an answer to a specific question and update the user's score.
+    Handles submission of quiz responses and updates the leaderboard.
     """
-    data = request.json
+    if request.is_json:
+        data = request.get_json()
+    else:
+        data = request.form
+
+    print("DEBUG: Received data:", data)
+
+    user_id = session.get('user_id')
+
+    # Check if user_id exists in the session
+    if not user_id:
+        return "User is not logged in or session has expired", 400
+
+    print(f"DEBUG: user_id from session: {user_id}")
+
+    user = User.query.get(user_id)
+
+    # Verify that the user exists
+    if not user:
+        return "Invalid user ID. User does not exist.", 400
+
+    print(f"DEBUG: User fetched from database: {user}")
+
     question_id = data.get('question_id')
-    user_answer = data.get('answer')
-    user_name = data.get('name')
+    selected_option = data.get('selected_option')
 
-    # Debug: Log the incoming request data
-    print(f"DEBUG: Data received for submission: {data}")
+    if not question_id or not selected_option:
+        return "Both question_id and selected_option are required", 400
 
-    if not all([question_id, user_answer, user_name]):
-        return jsonify({"error": "Question ID, user answer, and user name are required"}), 400
-
-    # Fetch the question from the database
-    question = QuestionBank.query.filter_by(question_id=question_id).first()
-
-    # Debug: Log the fetched question
-    print(f"DEBUG: Question fetched for ID '{question_id}': {question}")
-
+    question = QuestionBank.query.filter_by(id=question_id).first()
     if not question:
-        return jsonify({"error": "Invalid question ID"}), 400
+        return "Invalid question ID.", 400
 
-    # Determine if the answer is correct
-    is_correct = user_answer == question.correct_answer
-    score_change = question.passing_score if is_correct else question.failing_score
+    # Validate the response
+    is_correct = selected_option == question.correct_answer
+    score = question.passing_score if is_correct else question.failing_score
 
-    # Record the user's response in the database
-    new_response = UserResponses(
-        user_id=1,  # Replace with session/user authentication logic
-        timestamp=datetime.now(),
-        name=user_name,
-        score=score_change,
-        question_id=question_id,
-    )
-    db.session.add(new_response)
+    # Check if the user already has an entry in the leaderboard
+    user_response = UserResponses.query.filter_by(user_id=user_id).first()
+
+    if user_response:
+        # Update the existing score
+        user_response.score += score
+        print(f"DEBUG: Updated score for user {user_id}: {user_response.score}")
+    else:
+        # Create a new entry
+        user_response = UserResponses(
+            user_id=user_id,
+            name=f"{user.first_name} {user.last_name}",
+            score=score,
+            question_id=question_id,
+        )
+        db.session.add(user_response)
+        print(f"DEBUG: Created new entry for user {user_id} with score {score}")
+
     db.session.commit()
 
-    # Debug: Log the response status
-    print(f"DEBUG: User '{user_name}' submitted answer '{user_answer}'. Correct: {is_correct}")
+    # Render the result page
+    return render_template('results.html', is_correct=is_correct, score=score)
 
-    return jsonify({"correct": is_correct, "score_change": score_change})
+
+
+
 

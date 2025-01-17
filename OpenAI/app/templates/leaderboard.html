@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #e0e0e0; /* background color */
+            margin: 0;
+        }
+        table {
+            width: 80%;
+            margin: 20px auto;
+            border-collapse: collapse; 
+            border-spacing: 0;
+        }
+        th {
+            background-color: #007bff; /* Blue header background */
+            color: #fff;
+            padding: 15px;
+            text-align: left;
+        }
+        th:first-child {
+            border-top-left-radius: 12px; /* Curve for top-left corner */
+        }
+        th:last-child {
+            border-top-right-radius: 12px; /* Curve for top-right corner */
+        }
+        td {
+            background-color: #fff; /* White background for data rows */
+            padding: 15px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: red;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: darkred;
+        }
+    </style>
+</head>
+<body>
+    <h1>Leaderboard</h1>
+
+    {% if standings %}
+    <table>
+        <tr>
+            <th>Rank</th>
+            <th>Name</th>
+            <th>Total Score</th>
+        </tr>
+        {% for rank, user in enumerate(standings, start=1) %}
+        <tr>
+            <td>{{ rank }}</td>
+            <td>{{ user['name'] }}</td>
+            <td>{{ user['total_score'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p>No responses yet!</p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('auth.logout') }}">
+        <button type="submit">Logout</button>
+    </form>
+</body>
+</html>

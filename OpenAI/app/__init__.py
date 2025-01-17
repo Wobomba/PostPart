@@ -2,7 +2,6 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from app.config import Config
-import os
 
 # Initialize the database and migration
 db = SQLAlchemy()
@@ -16,18 +15,13 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # Debug: Print the database file being used
-    db_path = os.path.abspath(app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', ''))
-    print(f"Using database file: {db_path}")
+    # Register blueprints
+    from app.auth_leaderboard_routes import auth_bp
+    from app.fetch_routes import fetch_bp
+    from app.quiz_routes import quiz_bp
 
-    # Import and register Blueprints
-    from app.poll_routes import poll
-    from app.fetch_routes import fetch
-    from app.quiz_routes import quiz
-
-    app.register_blueprint(poll, url_prefix='/')
-    app.register_blueprint(fetch, url_prefix='/api')
-    app.register_blueprint(quiz)
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(fetch_bp, url_prefix='/fetch')  
+    app.register_blueprint(quiz_bp, url_prefix='/quiz')
 
     return app
-
