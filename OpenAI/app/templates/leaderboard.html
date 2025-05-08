@@ -59,12 +59,14 @@
         <tr>
             <th>Rank</th>
             <th>Name</th>
+            <th>Department</th>
             <th>Total Score</th>
         </tr>
         {% for rank, user in enumerate(standings, start=1) %}
         <tr>
             <td>{{ rank }}</td>
             <td>{{ user['name'] }}</td>
+            <td>{{ user['department'] }}</td>
             <td>{{ user['total_score'] }}</td>
         </tr>
         {% endfor %}

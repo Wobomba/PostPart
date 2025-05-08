@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Biometric Authentication{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="text-center">Biometric Authentication</h3>
+                </div>
+                <div class="card-body">
+                    <div id="biometric-status" class="alert alert-info text-center">
+                        <i class="fas fa-fingerprint fa-2x mb-3"></i>
+                        <p>Please use your fingerprint to authenticate</p>
+                    </div>
+                    
+                    <div id="error-message" class="alert alert-danger d-none"></div>
+                    
+                    <div class="text-center mt-3">
+                        <button id="register-biometric" class="btn btn-primary">
+                            Register Biometric
+                        </button>
+                        <button id="verify-biometric" class="btn btn-success">
+                            Verify Biometric
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const registerButton = document.getElementById('register-biometric');
+    const verifyButton = document.getElementById('verify-biometric');
+    const statusDiv = document.getElementById('biometric-status');
+    const errorDiv = document.getElementById('error-message');
+
+    // Check if WebAuthn is supported
+    if (!window.PublicKeyCredential) {
+        statusDiv.innerHTML = '<p class="text-danger">Biometric authentication is not supported in your browser.</p>';
+        registerButton.disabled = true;
+        verifyButton.disabled = true;
+        return;
+    }
+
+    // Register new biometric credential
+    registerButton.addEventListener('click', async function() {
+        try {
+            // Get challenge from server
+            const response = await fetch('/get-challenge');
+            const { challenge, rpId, timeout } = await response.json();
+
+            // Create credential
+            const credential = await navigator.credentials.create({
+                publicKey: {
+                    challenge: Uint8Array.from(atob(challenge), c => c.charCodeAt(0)),
+                    rp: {
+                        name: "Your App Name",
+                        id: rpId
+                    },
+                    user: {
+                        id: Uint8Array.from(window.crypto.randomUUID(), c => c.charCodeAt(0)),
+                        name: "{{ current_user.username }}",
+                        displayName: "{{ current_user.first_name }} {{ current_user.last_name }}"
+                    },
+                    pubKeyCredParams: [
+                        { type: "public-key", alg: -7 } // ES256
+                    ],
+                    timeout: timeout,
+                    attestation: "direct"
+                }
+            });
+
+            // Send credential to server
+            const result = await fetch('/register-biometric', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    credential: {
+                        id: credential.id,
+                        rawId: Array.from(new Uint8Array(credential.rawId)),
+                        response: {
+                            attestationObject: Array.from(new Uint8Array(credential.response.attestationObject)),
+                            clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON))
+                        },
+                        type: credential.type
+                    }
+                })
+            });
+
+            const data = await result.json();
+            if (result.ok) {
+                statusDiv.innerHTML = '<p class="text-success">Biometric credential registered successfully!</p>';
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            errorDiv.textContent = error.message;
+            errorDiv.classList.remove('d-none');
+        }
+    });
+
+    // Verify biometric credential
+    verifyButton.addEventListener('click', async function() {
+        try {
+            // Get challenge from server
+            const response = await fetch('/get-challenge');
+            const { challenge, rpId, timeout } = await response.json();
+
+            // Get credential
+            const credential = await navigator.credentials.get({
+                publicKey: {
+                    challenge: Uint8Array.from(atob(challenge), c => c.charCodeAt(0)),
+                    rpId: rpId,
+                    timeout: timeout,
+                    userVerification: "required"
+                }
+            });
+
+            // Send credential to server
+            const result = await fetch('/verify-biometric', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    credential: {
+                        id: credential.id,
+                        rawId: Array.from(new Uint8Array(credential.rawId)),
+                        response: {
+                            authenticatorData: Array.from(new Uint8Array(credential.response.authenticatorData)),
+                            clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON)),
+                            signature: Array.from(new Uint8Array(credential.response.signature))
+                        },
+                        type: credential.type
+                    }
+                })
+            });
+
+            const data = await result.json();
+            if (result.ok) {
+                window.location.href = '/dashboard'; // Redirect to dashboard on success
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            errorDiv.textContent = error.message;
+            errorDiv.classList.remove('d-none');
+        }
+    });
+});
+</script>
+{% endblock %} 

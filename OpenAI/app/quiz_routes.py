@@ -1,20 +1,26 @@
-from flask import Blueprint, redirect, render_template, request, session, url_for
-from app.models import QuestionBank
+from flask import Blueprint, redirect, render_template, request, session, url_for, flash
+from app.models import QuestionBank, User
 from app import db
 import json
+from app.auth_leaderboard_routes import login_required
 
 quiz_bp = Blueprint('quiz', __name__)
 
 @quiz_bp.route('/quiz', methods=['GET'])
+@login_required
 def quiz_page():
     """
     Fetch and display a question for the selected department.
     Redirect to select_department if no department is set in the session.
     """
-    # Retrieve the department from the session
-    department = session.get('department', '').strip()
+    # Get user from database
+    user = User.query.get(session.get('user_id'))
+    if not user:
+        flash('Please log in to access this page.', 'danger')
+        return redirect(url_for('auth.login'))
 
-    # Redirect to select_department if no department is set
+    # Use department from user record
+    department = user.department
     if not department:
         return redirect(url_for('auth.select_department'))
 

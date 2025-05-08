@@ -1,17 +1,21 @@
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from flask_login import UserMixin
 
 # User model
-class User(db.Model):
+class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
+    department = db.Column(db.String(50), nullable=True)
 
     # One-to-many relationship with UserResponses
     responses = db.relationship('UserResponses', backref='user', lazy=True)
+    # One-to-many relationship with BiometricCredential
+    biometric_credentials = db.relationship('BiometricCredential', backref='user', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -42,3 +46,13 @@ class UserResponses(db.Model):
 
     # Establish relationship with QuestionBank
     question = db.relationship('QuestionBank', backref=db.backref('responses', lazy=True))
+
+# Biometric credential model
+class BiometricCredential(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    credential_id = db.Column(db.String(255), unique=True, nullable=False)
+    public_key = db.Column(db.Text, nullable=False)
+    sign_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used = db.Column(db.DateTime, default=datetime.utcnow)
