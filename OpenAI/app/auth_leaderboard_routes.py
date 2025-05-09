@@ -93,8 +93,8 @@ def login():
 def register():
     if request.method == 'POST':
         username = request.form.get('username')
-        first_name = request.form.get('firstname')
-        last_name = request.form.get('lastname')
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
 
@@ -176,31 +176,38 @@ def select_department():
 @login_required
 def leaderboard():
     """
-    Displays the leaderboard for users.
+    Displays the leaderboard for all users.
     """
-    # Ensure the user can only access their own data
+    # Ensure the user is logged in
     user_id = session.get('user_id')
     if not user_id:
         flash('Please log in to access this page.', 'danger')
         return redirect(url_for('auth.login'))
 
+    # Get standings for all users
     standings = (
         db.session.query(
-            UserResponses.name,
+            User.username,
+            User.first_name,
+            User.last_name,
             User.department,
             db.func.sum(UserResponses.score).label('total_score')
         )
         .join(User, UserResponses.user_id == User.id)
-        .filter(UserResponses.user_id == user_id)  # Filter by the logged-in user's ID
-        .group_by(UserResponses.user_id, UserResponses.name, User.department)
+        .group_by(User.id, User.username, User.first_name, User.last_name, User.department)
         .order_by(db.desc('total_score'))
         .all()
     )
 
     # Convert the query result into a list of dictionaries
-    standings_list = [{"name": row[0], "department": row[1], "total_score": row[2]} for row in standings]
-
-    print("DEBUG: Standings List:", standings_list)
+    standings_list = [
+        {
+            "username": row[0],
+            "name": f"{row[1]} {row[2]}",
+            "department": row[3],
+            "total_score": row[4]
+        } for row in standings
+    ]
 
     return render_template('leaderboard.html', standings=standings_list, enumerate=enumerate)
 
