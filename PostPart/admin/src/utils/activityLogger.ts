@@ -21,6 +21,7 @@ export type ActivityType =
   | 'checkin_completed'
   | 'allocation_created'
   | 'allocation_updated'
+  | 'report_exported'
   | 'system_error'
   | 'system_warning';
 

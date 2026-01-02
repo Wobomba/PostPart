@@ -8,6 +8,7 @@ import CenterForm from '../../../components/CenterForm';
 import QRCodeManagement from '../../../components/QRCodeManagement';
 import { supabase } from '../../../../lib/supabase';
 import { logActivity } from '../../../utils/activityLogger';
+import { generateCentrePDF } from '../../../utils/pdfExport';
 import {
   Box,
   Grid,
@@ -54,6 +55,7 @@ import {
   People as PeopleIcon,
   ChildCare as ChildCareIcon,
   QrCode as QrCodeIcon,
+  GetApp as GetAppIcon,
 } from '@mui/icons-material';
 import type { Center } from '../../../../../../../shared/types';
 
@@ -269,6 +271,109 @@ export default function CentersPage() {
   const handleManageQRCodes = (center: Center) => {
     setQRCodeCenter(center);
     setQRCodeDialogOpen(true);
+  };
+
+  const generateCenterReport = async () => {
+    if (!viewingCenter) return;
+
+    try {
+      // Fetch recent check-ins for this center
+      const { data: recentCheckIns, error: checkInsError } = await supabase
+        .from('checkins')
+        .select(`
+          check_in_time,
+          profiles!inner(full_name),
+          children!inner(first_name, last_name)
+        `)
+        .eq('center_id', viewingCenter.id)
+        .order('check_in_time', { ascending: false })
+        .limit(20);
+
+      if (checkInsError) throw checkInsError;
+
+      // Fetch unique parents count
+      const { data: uniqueParentsData, error: parentsError } = await supabase
+        .from('checkins')
+        .select('parent_id')
+        .eq('center_id', viewingCenter.id);
+
+      if (parentsError) throw parentsError;
+
+      const uniqueParents = new Set(uniqueParentsData?.map((c: any) => c.parent_id)).size;
+
+      // Get weekly check-ins
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const { count: weeklyCheckIns } = await supabase
+        .from('checkins')
+        .select('*', { count: 'exact', head: true })
+        .eq('center_id', viewingCenter.id)
+        .gte('check_in_time', sevenDaysAgo.toISOString());
+
+      // Get monthly check-ins
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { count: monthlyCheckIns } = await supabase
+        .from('checkins')
+        .select('*', { count: 'exact', head: true })
+        .eq('center_id', viewingCenter.id)
+        .gte('check_in_time', thirtyDaysAgo.toISOString());
+
+      // Format check-ins data
+      const formattedCheckIns = (recentCheckIns || []).map((c: any) => ({
+        check_in_time: c.check_in_time,
+        parent: { full_name: c.profiles?.full_name || 'Unknown' },
+        child: {
+          first_name: c.children?.first_name || 'Unknown',
+          last_name: c.children?.last_name || '',
+        },
+      }));
+
+      // Parse age range
+      let ageRangeMin = 0;
+      let ageRangeMax = 18;
+      if (viewingCenter.age_range) {
+        const match = viewingCenter.age_range.match(/(\d+)\s*-\s*(\d+)/);
+        if (match) {
+          ageRangeMin = parseInt(match[1]);
+          ageRangeMax = parseInt(match[2]);
+        }
+      }
+
+      // Generate PDF
+      generateCentrePDF({
+        name: viewingCenter.name,
+        address: viewingCenter.address,
+        city: viewingCenter.city,
+        district: viewingCenter.district,
+        region: viewingCenter.region,
+        capacity: viewingCenter.capacity,
+        is_verified: viewingCenter.is_verified,
+        services_offered: viewingCenter.services_offered,
+        operating_schedule: viewingCenter.operating_schedule,
+        description: viewingCenter.description,
+        age_range_min: ageRangeMin,
+        age_range_max: ageRangeMax,
+        totalCheckIns: viewingCenter.checkInCount,
+        todayCheckIns: viewingCenter.todayCheckIns,
+        weeklyCheckIns: weeklyCheckIns || 0,
+        monthlyCheckIns: monthlyCheckIns || 0,
+        uniqueParents: uniqueParents,
+        recentCheckIns: formattedCheckIns,
+      });
+
+      // Log the export activity
+      logActivity({
+        activityType: 'report_exported',
+        entityType: 'center',
+        entityId: viewingCenter.id,
+        entityName: viewingCenter.name,
+        description: `Exported PDF report for centre: ${viewingCenter.name}`,
+      });
+    } catch (error) {
+      console.error('Error generating center report:', error);
+      alert('Failed to generate report. Please try again.');
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -1005,6 +1110,23 @@ export default function CentersPage() {
           </DialogContent>
           <Divider />
           <DialogActions sx={{ p: 2 }}>
+            <Button
+              onClick={generateCenterReport}
+              variant="outlined"
+              startIcon={<GetAppIcon />}
+              sx={{
+                textTransform: 'none',
+                borderColor: '#E91E63',
+                color: '#E91E63',
+                '&:hover': {
+                  borderColor: '#C2185B',
+                  bgcolor: 'rgba(233, 30, 99, 0.04)',
+                },
+              }}
+            >
+              Export Report
+            </Button>
+            <Box sx={{ flex: 1 }} />
             <Button
               onClick={() => {
                 if (viewingCenter) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../../components/DashboardLayout';
 import { supabase } from '../../../../lib/supabase';
+import { generateActivityLogsPDF } from '../../../utils/pdfExport';
 import {
   Box,
   Card,
@@ -27,6 +28,7 @@ import {
   InputAdornment,
   IconButton,
   Tooltip,
+  Grid,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -65,6 +67,8 @@ export default function LogsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activityTypeFilter, setActivityTypeFilter] = useState<string>('all');
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
@@ -100,7 +104,7 @@ export default function LogsPage() {
 
   useEffect(() => {
     filterLogs();
-  }, [logs, searchQuery, activityTypeFilter, entityTypeFilter]);
+  }, [logs, searchQuery, activityTypeFilter, entityTypeFilter, startDate, endDate]);
 
   const loadLogs = async () => {
     try {
@@ -133,6 +137,19 @@ export default function LogsPage() {
 
   const filterLogs = () => {
     let filtered = [...logs];
+
+    // Apply date range filter
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filtered = filtered.filter((log) => new Date(log.created_at) >= start);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((log) => new Date(log.created_at) <= end);
+    }
 
     // Apply search filter
     if (searchQuery) {
@@ -174,16 +191,12 @@ export default function LogsPage() {
   };
 
   const handleExport = () => {
-    const dataStr = JSON.stringify(filteredLogs, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `activity_logs_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    generateActivityLogsPDF(filteredLogs, {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      activityType: activityTypeFilter !== 'all' ? activityTypeFilter : undefined,
+      entityType: entityTypeFilter !== 'all' ? entityTypeFilter : undefined,
+    });
   };
 
   const getActivityIcon = (type: string) => {
@@ -289,51 +302,75 @@ export default function LogsPage() {
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-            gap: 3,
-            mb: 4,
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+            gap: { xs: 2, sm: 3, md: 4 },
+            mb: { xs: 4, sm: 5, md: 6 },
+            width: '100%',
           }}
         >
-          <Card>
-            <CardContent sx={{ p: 2.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                Total Activities
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#E91E63', mt: 1 }}>
-                {loading ? <CircularProgress size={20} /> : totalCount}
-              </Typography>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent sx={{ p: 2.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                Filtered Results
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#2196F3', mt: 1 }}>
-                {filteredLogs.length}
-              </Typography>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent sx={{ p: 2.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                Active Filters
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#4CAF50', mt: 1 }}>
-                {(activityTypeFilter !== 'all' ? 1 : 0) + (entityTypeFilter !== 'all' ? 1 : 0) + (searchQuery ? 1 : 0)}
-              </Typography>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent sx={{ p: 2.5 }}>
-              <Typography variant="caption" color="text.secondary">
-                Current Page
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#9C27B0', mt: 1 }}>
-                {page + 1}
-              </Typography>
-            </CardContent>
-          </Card>
+          <Box sx={{ display: 'flex', width: '100%' }}>
+            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <CheckCircleIcon sx={{ fontSize: 20, color: '#E91E63' }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                    Total Activities
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                  {loading ? <CircularProgress size={20} sx={{ color: '#E91E63' }} /> : totalCount}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+
+          <Box sx={{ display: 'flex', width: '100%' }}>
+            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <SearchIcon sx={{ fontSize: 20, color: '#2196F3' }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                    Filtered Results
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                  {filteredLogs.length}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+
+          <Box sx={{ display: 'flex', width: '100%' }}>
+            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <FilterListIcon sx={{ fontSize: 20, color: '#4CAF50' }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                    Active Filters
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                  {(activityTypeFilter !== 'all' ? 1 : 0) + (entityTypeFilter !== 'all' ? 1 : 0) + (searchQuery ? 1 : 0)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
+
+          <Box sx={{ display: 'flex', width: '100%' }}>
+            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <InfoIcon sx={{ fontSize: 20, color: '#9C27B0' }} />
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                    Current Page
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                  {page + 1}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
         </Box>
 
         {/* Filters */}
@@ -345,81 +382,125 @@ export default function LogsPage() {
                 Filters
               </Typography>
             </Box>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-                gap: 2,
-              }}
-            >
-              <TextField
-                placeholder="Search logs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: '#E91E63' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    '&:hover fieldset': {
-                      borderColor: '#E91E63',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: '#E91E63',
-                    },
-                  },
-                }}
-              />
-              <FormControl fullWidth>
-                <InputLabel>Activity Type</InputLabel>
-                <Select
-                  value={activityTypeFilter}
-                  onChange={(e) => setActivityTypeFilter(e.target.value)}
-                  label="Activity Type"
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  placeholder="Search logs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  fullWidth
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: '#E91E63' }} />
+                      </InputAdornment>
+                    ),
+                  }}
                   sx={{
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#E91E63',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#E91E63',
+                    '& .MuiOutlinedInput-root': {
+                      '&:hover fieldset': {
+                        borderColor: '#E91E63',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#E91E63',
+                      },
                     },
                   }}
-                >
-                  {activityTypes.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>Entity Type</InputLabel>
-                <Select
-                  value={entityTypeFilter}
-                  onChange={(e) => setEntityTypeFilter(e.target.value)}
-                  label="Entity Type"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="Start Date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  fullWidth
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
                   sx={{
-                    '&:hover .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#E91E63',
-                    },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                      borderColor: '#E91E63',
+                    '& .MuiOutlinedInput-root': {
+                      '&:hover fieldset': {
+                        borderColor: '#E91E63',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#E91E63',
+                      },
                     },
                   }}
-                >
-                  {entityTypes.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="End Date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  fullWidth
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '&:hover fieldset': {
+                        borderColor: '#E91E63',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#E91E63',
+                      },
+                    },
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Activity Type</InputLabel>
+                  <Select
+                    value={activityTypeFilter}
+                    onChange={(e) => setActivityTypeFilter(e.target.value)}
+                    label="Activity Type"
+                    sx={{
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#E91E63',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#E91E63',
+                      },
+                    }}
+                  >
+                    {activityTypes.map((type) => (
+                      <MenuItem key={type.value} value={type.value}>
+                        {type.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Entity Type</InputLabel>
+                  <Select
+                    value={entityTypeFilter}
+                    onChange={(e) => setEntityTypeFilter(e.target.value)}
+                    label="Entity Type"
+                    sx={{
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#E91E63',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#E91E63',
+                      },
+                    }}
+                  >
+                    {entityTypes.map((type) => (
+                      <MenuItem key={type.value} value={type.value}>
+                        {type.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
           </CardContent>
         </Card>
 
