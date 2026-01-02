@@ -9,6 +9,7 @@ import QRCodeManagement from '../../../components/QRCodeManagement';
 import { supabase } from '../../../../lib/supabase';
 import { logActivity } from '../../../utils/activityLogger';
 import { generateCentrePDF } from '../../../utils/pdfExport';
+import { useDebounce } from '../../../hooks/useDebounce';
 import {
   Box,
   Grid,
@@ -102,20 +103,52 @@ export default function CentersPage() {
   useEffect(() => {
     loadData();
 
-    // Set up realtime subscription for instant center updates
+    // Set up optimized realtime subscription for instant center updates
     const centerChannel = supabase
       .channel('admin-centers-changes')
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: 'INSERT',
           schema: 'public',
           table: 'centers',
         },
         (payload) => {
-          console.log('Center change detected:', payload);
-          // Reload centers and stats
+          console.log('New center added:', payload);
+          // Reload full data for new center with metrics
           loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'centers',
+        },
+        (payload) => {
+          console.log('Center updated:', payload);
+          // Update specific center in state
+          const updatedCenter = payload.new as any;
+          setCenters(prev => prev.map(c => 
+            c.id === updatedCenter.id 
+              ? { ...c, ...updatedCenter } 
+              : c
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'centers',
+        },
+        (payload) => {
+          console.log('Center deleted:', payload);
+          const deletedId = (payload.old as any).id;
+          setCenters(prev => prev.filter(c => c.id !== deletedId));
+          loadStats(); // Update counts
         }
       )
       .subscribe();
