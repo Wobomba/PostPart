@@ -914,7 +914,7 @@ export default function CentersPage() {
                               setViewingCenter(center);
                               setViewDialogOpen(true);
                             }}
-                            sx={{ color: '#E91E63', '&:hover': { bgcolor: 'rgba(233, 30, 99, 0.04)' } }}
+                            sx={{ color: '#64748b', '&:hover': { color: '#E91E63', bgcolor: '#FCE4EC' } }}
                           >
                             <VisibilityIcon fontSize="small" />
                           </IconButton>
@@ -926,7 +926,7 @@ export default function CentersPage() {
                               setEditingCenter(center);
                               setEditDrawerOpen(true);
                             }}
-                            sx={{ color: '#2196F3', '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.04)' } }}
+                            sx={{ color: '#64748b', '&:hover': { color: '#2196F3', bgcolor: '#E3F2FD' } }}
                           >
                             <EditIcon fontSize="small" />
                           </IconButton>
@@ -935,7 +935,7 @@ export default function CentersPage() {
                           <IconButton
                             size="small"
                             onClick={() => handleManageQRCodes(center)}
-                            sx={{ color: '#9C27B0', '&:hover': { bgcolor: 'rgba(156, 39, 176, 0.04)' } }}
+                            sx={{ color: '#64748b', '&:hover': { color: '#9C27B0', bgcolor: '#F3E5F5' } }}
                           >
                             <QrCodeIcon fontSize="small" />
                           </IconButton>
@@ -944,7 +944,7 @@ export default function CentersPage() {
                           <IconButton
                             size="small"
                             onClick={() => handleDeleteClick(center)}
-                            sx={{ color: '#F44336', '&:hover': { bgcolor: 'rgba(244, 67, 54, 0.04)' } }}
+                            sx={{ color: '#64748b', '&:hover': { color: '#F44336', bgcolor: '#FFEBEE' } }}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>

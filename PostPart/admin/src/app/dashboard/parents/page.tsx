@@ -838,8 +838,8 @@ export default function ParentsPage() {
                               size="small"
                               onClick={() => handleViewClick(parent)}
                               sx={{ 
-                                color: '#E91E63',
-                                '&:hover': { bgcolor: 'rgba(233, 30, 99, 0.08)' }
+                                color: '#64748b',
+                                '&:hover': { color: '#E91E63', bgcolor: '#FCE4EC' }
                               }}
                             >
                               <VisibilityIcon fontSize="small" />
@@ -853,8 +853,8 @@ export default function ParentsPage() {
                                 setEditDrawerOpen(true);
                               }}
                               sx={{ 
-                                color: '#2196F3',
-                                '&:hover': { bgcolor: 'rgba(33, 150, 243, 0.08)' }
+                                color: '#64748b',
+                                '&:hover': { color: '#2196F3', bgcolor: '#E3F2FD' }
                               }}
                             >
                               <EditIcon fontSize="small" />
@@ -869,8 +869,8 @@ export default function ParentsPage() {
                                 setTimeout(() => generateParentReport(), 1000);
                               }}
                               sx={{ 
-                                color: '#9C27B0',
-                                '&:hover': { bgcolor: 'rgba(156, 39, 176, 0.08)' }
+                                color: '#64748b',
+                                '&:hover': { color: '#9C27B0', bgcolor: '#F3E5F5' }
                               }}
                             >
                               <DescriptionIcon fontSize="small" />
@@ -882,8 +882,8 @@ export default function ParentsPage() {
                                 size="small"
                                 onClick={() => handleStatusChange(parent, 'inactive')}
                                 sx={{ 
-                                  color: '#FF9800',
-                                  '&:hover': { bgcolor: 'rgba(255, 152, 0, 0.08)' }
+                                  color: '#64748b',
+                                  '&:hover': { color: '#FF9800', bgcolor: '#FFF3E0' }
                                 }}
                               >
                                 <BlockIcon fontSize="small" />
@@ -895,8 +895,8 @@ export default function ParentsPage() {
                                 size="small"
                                 onClick={() => handleStatusChange(parent, 'active')}
                                 sx={{ 
-                                  color: '#4CAF50',
-                                  '&:hover': { bgcolor: 'rgba(76, 175, 80, 0.08)' }
+                                  color: '#64748b',
+                                  '&:hover': { color: '#4CAF50', bgcolor: '#E8F5E9' }
                                 }}
                               >
                                 <CheckCircleOutlineIcon fontSize="small" />
