@@ -277,7 +277,12 @@ export default function LogsPage() {
                 sx={{
                   color: '#E91E63',
                   border: '1px solid #E91E63',
-                  '&:hover': { bgcolor: 'rgba(233, 30, 99, 0.04)' },
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(233, 30, 99, 0.04)',
+                    transform: 'rotate(180deg)',
+                    borderColor: '#C2185B',
+                  },
                 }}
               >
                 <RefreshIcon />
@@ -289,7 +294,13 @@ export default function LogsPage() {
                 sx={{
                   color: '#E91E63',
                   border: '1px solid #E91E63',
-                  '&:hover': { bgcolor: 'rgba(233, 30, 99, 0.04)' },
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    bgcolor: 'rgba(233, 30, 99, 0.04)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 4px 8px rgba(233, 30, 99, 0.3)',
+                    borderColor: '#C2185B',
+                  },
                 }}
               >
                 <DownloadIcon />
@@ -309,10 +320,23 @@ export default function LogsPage() {
           }}
         >
           <Box sx={{ display: 'flex', width: '100%' }}>
-            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={{
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'fadeIn 0.5s ease-in',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <CheckCircleIcon sx={{ fontSize: 20, color: '#E91E63' }} />
+                  <CheckCircleIcon className="stat-icon" sx={{ fontSize: 20, color: '#E91E63', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Total Activities
                   </Typography>
@@ -325,10 +349,23 @@ export default function LogsPage() {
           </Box>
 
           <Box sx={{ display: 'flex', width: '100%' }}>
-            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={{
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'fadeIn 0.5s ease-in 0.1s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <SearchIcon sx={{ fontSize: 20, color: '#2196F3' }} />
+                  <SearchIcon className="stat-icon" sx={{ fontSize: 20, color: '#2196F3', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Filtered Results
                   </Typography>
@@ -341,26 +378,52 @@ export default function LogsPage() {
           </Box>
 
           <Box sx={{ display: 'flex', width: '100%' }}>
-            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={{
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'fadeIn 0.5s ease-in 0.2s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <FilterListIcon sx={{ fontSize: 20, color: '#4CAF50' }} />
+                  <FilterListIcon className="stat-icon" sx={{ fontSize: 20, color: '#4CAF50', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Active Filters
                   </Typography>
                 </Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                  {(activityTypeFilter !== 'all' ? 1 : 0) + (entityTypeFilter !== 'all' ? 1 : 0) + (searchQuery ? 1 : 0)}
+                  {(activityTypeFilter !== 'all' ? 1 : 0) + (entityTypeFilter !== 'all' ? 1 : 0) + (searchQuery ? 1 : 0) + (startDate ? 1 : 0) + (endDate ? 1 : 0)}
                 </Typography>
               </CardContent>
             </Card>
           </Box>
 
           <Box sx={{ display: 'flex', width: '100%' }}>
-            <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={{
+              height: '100%',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'fadeIn 0.5s ease-in 0.3s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <InfoIcon sx={{ fontSize: 20, color: '#9C27B0' }} />
+                  <InfoIcon className="stat-icon" sx={{ fontSize: 20, color: '#9C27B0', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Current Page
                   </Typography>

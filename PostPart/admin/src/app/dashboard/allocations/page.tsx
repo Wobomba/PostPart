@@ -179,12 +179,17 @@ export default function AllocationsPage() {
             }}
             sx={{
               bgcolor: '#E91E63',
-              '&:hover': { bgcolor: '#C2185B' },
               textTransform: 'none',
               fontSize: '1rem',
               fontWeight: 600,
               px: 3,
               py: 1.5,
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                bgcolor: '#C2185B',
+                transform: 'translateX(4px)',
+                boxShadow: '0 4px 12px rgba(233, 30, 99, 0.4)',
+              },
             }}
           >
             {showForm ? 'Cancel' : '+ Create Allocation'}
@@ -204,6 +209,11 @@ export default function AllocationsPage() {
               mb: { xs: 3, sm: 4, md: 5 },
               border: '1px solid',
               borderColor: 'divider',
+              animation: 'slideDown 0.4s ease-out',
+              '@keyframes slideDown': {
+                from: { opacity: 0, transform: 'translateY(-20px)' },
+                to: { opacity: 1, transform: 'translateY(0)' },
+              },
             }}
           >
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: '#1e293b' }}>
@@ -301,10 +311,19 @@ export default function AllocationsPage() {
                   mt: 2,
                   py: 1.5,
                   bgcolor: '#E91E63',
-                  '&:hover': { bgcolor: '#C2185B' },
                   textTransform: 'none',
                   fontSize: '1rem',
                   fontWeight: 600,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    bgcolor: '#C2185B',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 6px 16px rgba(233, 30, 99, 0.4)',
+                  },
+                  '&:disabled': {
+                    bgcolor: '#E0E0E0',
+                    transform: 'none',
+                  },
                 }}
               >
                 {saving ? (

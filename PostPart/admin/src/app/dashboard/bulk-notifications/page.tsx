@@ -332,7 +332,30 @@ export default function BulkNotificationsPage() {
           Bulk Notifications
         </Typography>
 
-        <Tabs value={activeTab} onChange={(_, val) => setActiveTab(val)} sx={{ mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, val) => setActiveTab(val)}
+          sx={{
+            mb: 3,
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '1rem',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                color: '#E91E63',
+                transform: 'translateY(-2px)',
+              },
+              '&.Mui-selected': {
+                color: '#E91E63',
+              },
+            },
+            '& .MuiTabs-indicator': {
+              backgroundColor: '#E91E63',
+              height: 3,
+            },
+          }}
+        >
           <Tab label="Send Notification" />
           <Tab label="History" />
         </Tabs>
@@ -340,7 +363,12 @@ export default function BulkNotificationsPage() {
         {/* Send Notification Tab */}
         {activeTab === 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-            <Card sx={{ maxWidth: 800, width: '100%' }}>
+            <Card sx={{
+              maxWidth: 800,
+              width: '100%',
+              animation: 'fadeIn 0.5s ease-in',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+            }}>
               <CardContent sx={{ p: { xs: 3, sm: 4, md: 5 } }}>
                 {error && (
                   <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
@@ -546,19 +574,27 @@ export default function BulkNotificationsPage() {
                     startIcon={sending ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <SendIcon />}
                     sx={{ 
                       bgcolor: '#E91E63', 
-                      '&:hover': { bgcolor: '#C2185B' },
                       py: 1.75,
                       fontSize: '1rem',
                       fontWeight: 600,
                       textTransform: 'none',
                       boxShadow: '0 4px 6px -1px rgb(233 30 99 / 0.3)',
+                      transition: 'all 0.3s ease',
                       '&:hover': {
                         boxShadow: '0 10px 15px -3px rgb(233 30 99 / 0.4)',
                         bgcolor: '#C2185B',
+                        transform: 'translateY(-2px)',
+                        '& .MuiButton-startIcon': {
+                          transform: 'translateX(4px)',
+                        },
                       },
                       '&:disabled': {
                         bgcolor: '#E0E0E0',
                         color: '#9E9E9E',
+                        transform: 'none',
+                      },
+                      '& .MuiButton-startIcon': {
+                        transition: 'transform 0.3s ease',
                       },
                     }}
                   >
@@ -576,7 +612,20 @@ export default function BulkNotificationsPage() {
             <CardContent sx={{ p: 3 }}>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h6">Notification History</Typography>
-                <IconButton onClick={loadNotificationHistory} disabled={loading}>
+                <IconButton
+                  onClick={loadNotificationHistory}
+                  disabled={loading}
+                  sx={{
+                    color: '#E91E63',
+                    border: '1px solid #E91E63',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      bgcolor: 'rgba(233, 30, 99, 0.04)',
+                      transform: 'rotate(180deg)',
+                      borderColor: '#C2185B',
+                    },
+                  }}
+                >
                   <RefreshIcon />
                 </IconButton>
               </Box>
