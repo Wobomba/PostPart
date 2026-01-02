@@ -1,0 +1,39 @@
+-- ============================================
+-- Fix: Update Email Template for 8-Digit OTP
+-- ============================================
+-- Supabase generates 8-digit OTP codes by default
+-- Update your email template to reflect this
+
+-- Go to: Supabase Dashboard → Authentication → Email Templates → "Confirm signup"
+-- Replace the entire template with this:
+
+<h2>Welcome to PostPart! 🏫</h2>
+
+<p>Hi there,</p>
+
+<p>Thanks for signing up for PostPart! To complete your registration, please use this verification code:</p>
+
+<div style="background-color: #f8f7f5; border: 3px solid #FF6B35; border-radius: 12px; padding: 30px; margin: 30px 0; text-align: center;">
+  <p style="margin: 0 0 10px 0; color: #666; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Your Verification Code</p>
+  <h1 style="color: #FF6B35; font-size: 48px; letter-spacing: 12px; margin: 0; font-family: 'Courier New', monospace; font-weight: bold;">
+    {{ .Token }}
+  </h1>
+  <p style="margin: 10px 0 0 0; color: #999; font-size: 12px;">8-digit code</p>
+</div>
+
+<p style="font-size: 16px; color: #333; font-weight: bold;">Enter this 8-digit code in the PostPart app to verify your email.</p>
+
+<p style="color: #666; font-size: 14px; margin-top: 30px;">⏱️ This code expires in 60 minutes.</p>
+
+<p style="color: #666; font-size: 14px;">If you didn't create an account with PostPart, you can safely ignore this email.</p>
+
+<hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+<p style="color: #999; font-size: 12px;">Best regards,<br>The PostPart Team</p>
+
+-- ============================================
+-- Note: {{ .Token }} displays the 8-digit OTP
+-- Supabase generates this automatically
+-- The code length cannot be changed (fixed at 8)
+-- ============================================
+

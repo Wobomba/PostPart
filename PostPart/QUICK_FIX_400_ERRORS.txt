@@ -1,0 +1,54 @@
+🚨 QUICK FIX FOR 400 ERRORS 🚨
+
+PROBLEM: Database tables don't exist in Supabase yet
+
+SOLUTION (2 minutes):
+
+1. Open: https://supabase.com/dashboard
+2. Select your project (etajqqnejfolsmslbsom)
+3. Click "SQL Editor" (left sidebar)
+4. Click "New Query"
+5. Open file: supabase/schema.sql
+6. Copy EVERYTHING (Ctrl+A, Ctrl+C)
+7. Paste into Supabase SQL Editor
+8. Click "Run" button
+9. Wait for "Success" message
+10. Refresh your mobile app
+
+✅ DONE! 400 errors should be gone.
+
+The app was trying to query tables that don't exist yet.
+Running schema.sql creates all the necessary database tables.
+
+----
+
+TABLES THAT WILL BE CREATED:
+- profiles (for users)
+- children (for parent's children)
+- centers (daycare centers)
+- center_qr_codes (QR codes for check-in)
+- checkins (check-in records) ← THIS FIXES THE 400 ERRORS
+- notifications (admin notifications)
+- parent_notifications (notification status)
+- organizations (companies/employers)
+- allocations (visit limits)
+- reports (analytics)
+
+----
+
+VERIFY IT WORKED:
+1. Go to "Table Editor" in Supabase
+2. You should see all 10 tables listed
+3. Refresh mobile app
+4. Console errors should be gone!
+
+----
+
+NEXT: Add sample data (optional)
+- Go to SQL Editor
+- Run: supabase/seed.sql
+- This adds sample centers and organizations
+
+----
+
+Any issues? The schema.sql file is ready to run!
