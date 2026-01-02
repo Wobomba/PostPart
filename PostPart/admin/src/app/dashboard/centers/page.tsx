@@ -471,7 +471,18 @@ export default function CentersPage() {
             sx={{
               textTransform: 'none',
               bgcolor: '#E91E63',
-              '&:hover': { bgcolor: '#C2185B' },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                bgcolor: '#C2185B',
+                transform: 'translateX(4px)',
+                boxShadow: '0 4px 12px rgba(233, 30, 99, 0.4)',
+                '& .MuiButton-startIcon': {
+                  transform: 'scale(1.2)',
+                },
+              },
+              '& .MuiButton-startIcon': {
+                transition: 'transform 0.3s ease',
+              },
             }}
           >
             Add Centre
@@ -490,10 +501,23 @@ export default function CentersPage() {
             }}
           >
             <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{
+                height: '100%',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                animation: 'fadeIn 0.5s ease-in',
+                '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                  '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+                },
+              }}>
                 <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <LocationOnIcon sx={{ fontSize: 20, color: '#E91E63' }} />
+                    <LocationOnIcon className="stat-icon" sx={{ fontSize: 20, color: '#E91E63', transition: 'transform 0.3s ease' }} />
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Total
                     </Typography>
@@ -506,10 +530,23 @@ export default function CentersPage() {
             </Box>
 
             <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{
+                height: '100%',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                animation: 'fadeIn 0.5s ease-in 0.1s backwards',
+                '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                  '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+                },
+              }}>
                 <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <CheckCircleIcon sx={{ fontSize: 20, color: '#4CAF50' }} />
+                    <CheckCircleIcon className="stat-icon" sx={{ fontSize: 20, color: '#4CAF50', transition: 'transform 0.3s ease' }} />
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Verified
                     </Typography>
@@ -522,10 +559,23 @@ export default function CentersPage() {
             </Box>
 
             <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{
+                height: '100%',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                animation: 'fadeIn 0.5s ease-in 0.2s backwards',
+                '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                  '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+                },
+              }}>
                 <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <WarningIcon sx={{ fontSize: 20, color: '#FF9800' }} />
+                    <WarningIcon className="stat-icon" sx={{ fontSize: 20, color: '#FF9800', transition: 'transform 0.3s ease' }} />
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Unverified
                     </Typography>
@@ -538,10 +588,23 @@ export default function CentersPage() {
             </Box>
 
             <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{
+                height: '100%',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                animation: 'fadeIn 0.5s ease-in 0.3s backwards',
+                '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                  '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+                },
+              }}>
                 <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <CheckCircleIcon sx={{ fontSize: 20, color: '#2196F3' }} />
+                    <CheckCircleIcon className="stat-icon" sx={{ fontSize: 20, color: '#2196F3', transition: 'transform 0.3s ease' }} />
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Check-Ins
                     </Typography>
@@ -554,10 +617,23 @@ export default function CentersPage() {
             </Box>
 
             <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{
+                height: '100%',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                animation: 'fadeIn 0.5s ease-in 0.4s backwards',
+                '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                  '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+                },
+              }}>
                 <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <AccessTimeIcon sx={{ fontSize: 20, color: '#9C27B0' }} />
+                    <AccessTimeIcon className="stat-icon" sx={{ fontSize: 20, color: '#9C27B0', transition: 'transform 0.3s ease' }} />
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Today
                     </Typography>
@@ -570,10 +646,23 @@ export default function CentersPage() {
             </Box>
 
             <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{
+                height: '100%',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                animation: 'fadeIn 0.5s ease-in 0.5s backwards',
+                '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                  '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+                },
+              }}>
                 <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <PeopleIcon sx={{ fontSize: 20, color: '#FF5722' }} />
+                    <PeopleIcon className="stat-icon" sx={{ fontSize: 20, color: '#FF5722', transition: 'transform 0.3s ease' }} />
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                       Capacity
                     </Typography>
