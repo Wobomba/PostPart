@@ -119,20 +119,51 @@ export default function OrganizationsPage() {
   useEffect(() => {
     loadData();
 
-    // Set up realtime subscription for instant organisation updates
+    // Set up optimized realtime subscription for instant organisation updates
     const organizationChannel = supabase
       .channel('admin-organizations-changes')
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: 'INSERT',
           schema: 'public',
           table: 'organizations',
         },
         (payload) => {
-          console.log('Organisation change detected:', payload);
-          // Reload organisations data
+          console.log('New organisation added:', payload);
+          // Reload full data for new organisation with metrics
           loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'organizations',
+        },
+        (payload) => {
+          console.log('Organisation updated:', payload);
+          // Update specific organisation in state
+          const updatedOrg = payload.new as any;
+          setOrganizations(prev => prev.map(org => 
+            org.id === updatedOrg.id 
+              ? { ...org, ...updatedOrg } 
+              : org
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'organizations',
+        },
+        (payload) => {
+          console.log('Organisation deleted:', payload);
+          const deletedId = (payload.old as any).id;
+          setOrganizations(prev => prev.filter(org => org.id !== deletedId));
         }
       )
       .subscribe();

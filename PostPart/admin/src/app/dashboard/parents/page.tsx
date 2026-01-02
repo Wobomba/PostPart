@@ -7,6 +7,7 @@ import ParentForm from '../../../components/ParentForm';
 import { supabase } from '../../../../lib/supabase';
 import { logActivity } from '../../../utils/activityLogger';
 import { generateParentPDF } from '../../../utils/pdfExport';
+import { useDebounce } from '../../../hooks/useDebounce';
 import {
   Box,
   Card,
@@ -78,6 +79,7 @@ export default function ParentsPage() {
   const [parents, setParents] = useState<ParentWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300); // Debounce search by 300ms
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [organizationFilter, setOrganizationFilter] = useState<string>(orgFilter || 'all');
   const [stats, setStats] = useState<ParentStats>({
@@ -102,20 +104,54 @@ export default function ParentsPage() {
     loadData();
     loadOrganizations();
 
-    // Set up realtime subscription for instant parent updates
+    // Set up optimized realtime subscription for instant parent updates
     const profileChannel = supabase
       .channel('admin-profiles-changes')
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
+          event: 'INSERT',
+          schema: 'public',
+          table: 'profiles',
+        },
+        async (payload) => {
+          console.log('New parent added:', payload);
+          // Reload stats to update counts
+          loadStats();
+          // Optionally reload full data if needed for proper metrics
+          loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        async (payload) => {
+          console.log('Parent updated:', payload);
+          // Update specific parent in state without full reload
+          const updatedParent = payload.new as any;
+          setParents(prev => prev.map(p => 
+            p.id === updatedParent.id 
+              ? { ...p, ...updatedParent } 
+              : p
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
           schema: 'public',
           table: 'profiles',
         },
         (payload) => {
-          console.log('Parent profile change detected:', payload);
-          // Reload parents data
-          loadData();
+          console.log('Parent deleted:', payload);
+          const deletedId = (payload.old as any).id;
+          setParents(prev => prev.filter(p => p.id !== deletedId));
+          loadStats(); // Update counts
         }
       )
       .subscribe();
@@ -302,11 +338,12 @@ export default function ParentsPage() {
     }
   };
 
+  // Use debounced search query for filtering to improve performance
   const filteredParents = parents.filter(parent => {
     const matchesSearch =
-      parent.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      parent.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      parent.organization?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      parent.full_name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      parent.email?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      parent.organization?.name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || parent.status === statusFilter;
     const matchesOrg = organizationFilter === 'all' || parent.organization_id === organizationFilter;
