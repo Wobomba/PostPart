@@ -60,6 +60,7 @@ import {
   GetApp as GetAppIcon,
 } from '@mui/icons-material';
 import type { Organization } from '../../../../../../../shared/types';
+import { generateOrganisationPDF } from '../../../utils/pdfExport';
 
 interface OrganizationStats {
   totalOrganizations: number;
@@ -573,58 +574,33 @@ export default function OrganizationsPage() {
   const generateOrganizationReport = () => {
     if (!viewingOrganization) return;
 
-    const reportData = {
-      organization: {
-        name: viewingOrganization.name,
-        industry: viewingOrganization.industry,
-        status: viewingOrganization.status,
-        plan_type: viewingOrganization.plan_type,
-        size: viewingOrganization.size,
-        contact_name: viewingOrganization.contact_name,
-        contact_email: viewingOrganization.contact_email,
-        contact_phone: viewingOrganization.contact_phone,
-        address: viewingOrganization.address,
-        city: viewingOrganization.city,
-        state: viewingOrganization.state,
-        zip_code: viewingOrganization.zip_code,
-        contract_start_date: viewingOrganization.contract_start_date,
-        contract_end_date: viewingOrganization.contract_end_date,
-      },
-      statistics: {
-        totalParents: viewingOrganization.parentCount,
-        totalCheckIns: viewingOrganization.checkInCount,
-        todayCheckIns: viewingOrganization.todayCheckIns,
-        weeklyCheckIns: viewingOrganization.weeklyCheckIns,
-        lastActivity: viewingOrganization.lastCheckInDate 
-          ? new Date(viewingOrganization.lastCheckInDate).toLocaleString()
-          : 'Never',
-      },
-      parents: viewParents.map(p => ({
-        name: p.full_name,
-        email: p.email,
-        joined: new Date(p.created_at).toLocaleDateString(),
-      })),
-      recentCheckIns: viewRecentCheckIns.map((c: any) => {
-        const child = Array.isArray(c.children) ? c.children[0] : c.children;
-        const center = Array.isArray(c.centers) ? c.centers[0] : c.centers;
-        return {
-          date: new Date(c.check_in_time).toLocaleString(),
-          center: center?.name || 'Unknown',
-          child: child ? `${child.first_name} ${child.last_name}` : 'Unknown',
-        };
-      }),
-      reportGenerated: new Date().toLocaleString(),
-    };
+    generateOrganisationPDF({
+      name: viewingOrganization.name,
+      industry: viewingOrganization.industry,
+      status: viewingOrganization.status,
+      plan_type: viewingOrganization.plan_type,
+      size: viewingOrganization.size,
+      contact_name: viewingOrganization.contact_name,
+      contact_email: viewingOrganization.contact_email,
+      contact_phone: viewingOrganization.contact_phone,
+      address: viewingOrganization.address,
+      city: viewingOrganization.city,
+      parentCount: viewingOrganization.parentCount,
+      checkInCount: viewingOrganization.checkInCount,
+      todayCheckIns: viewingOrganization.todayCheckIns,
+      lastCheckInDate: viewingOrganization.lastCheckInDate,
+      parents: viewParents,
+      recentCheckIns: viewRecentCheckIns,
+    });
 
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${viewingOrganization.name.replace(/\s+/g, '_')}_report_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Log the export activity
+    logActivity({
+      activityType: 'report_exported',
+      entityType: 'organisation',
+      entityId: viewingOrganization.id,
+      entityName: viewingOrganization.name,
+      description: `Exported PDF report for organisation: ${viewingOrganization.name}`,
+    });
   };
 
   return (
@@ -648,11 +624,20 @@ export default function OrganizationsPage() {
             sx={{
               textTransform: 'none',
               bgcolor: '#E91E63',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
               '&:hover': {
                 bgcolor: '#C2185B',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 16px -4px rgba(233, 30, 99, 0.4)',
               },
               px: { xs: 3, sm: 4 },
               py: { xs: 1.5, sm: 1.75 },
+              '& .MuiButton-startIcon': {
+                transition: 'transform 0.2s ease',
+              },
+              '&:hover .MuiButton-startIcon': {
+                transform: 'rotate(90deg)',
+              },
             }}
           >
             Add Organisation
@@ -670,96 +655,65 @@ export default function OrganizationsPage() {
               width: '100%',
             }}
           >
-            <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <BusinessIcon sx={{ fontSize: 20, color: '#E91E63' }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      Total
+            {[
+              { icon: <BusinessIcon />, label: 'Total', value: stats.totalOrganizations, color: '#E91E63' },
+              { icon: <CheckCircleIcon />, label: 'Active', value: stats.activeOrganizations, color: '#4CAF50' },
+              { icon: <PeopleIcon />, label: 'Parents', value: stats.totalParents, color: '#2196F3' },
+              { icon: <BarChartIcon />, label: 'Total Check-ins', value: stats.totalCheckIns, color: '#9C27B0' },
+              { icon: <AccessTimeIcon />, label: 'Today', value: stats.todayCheckIns, color: '#FF9800' },
+              { icon: <TrendingUpIcon />, label: 'This Week', value: stats.weeklyCheckIns, color: '#E91E63' },
+            ].map((stat, index) => (
+              <Box key={index} sx={{ display: 'flex', width: '100%' }}>
+                <Card sx={{ 
+                  height: '100%', 
+                  width: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  cursor: 'default',
+                  animation: `fadeIn 0.5s ease-out ${index * 0.1}s both`,
+                  '@keyframes fadeIn': {
+                    '0%': {
+                      opacity: 0,
+                      transform: 'translateY(10px)',
+                    },
+                    '100%': {
+                      opacity: 1,
+                      transform: 'translateY(0)',
+                    },
+                  },
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 12px 24px -10px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                  },
+                }}>
+                  <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Box
+                        sx={{
+                          fontSize: 20,
+                          color: stat.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          transition: 'transform 0.2s ease',
+                          '&:hover': {
+                            transform: 'scale(1.1) rotate(5deg)',
+                          },
+                        }}
+                      >
+                        {stat.icon}
+                      </Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                        {stat.label}
+                      </Typography>
+                    </Box>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                      {stat.value}
                     </Typography>
-                  </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                    {stats.totalOrganizations}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <CheckCircleIcon sx={{ fontSize: 20, color: '#4CAF50' }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      Active
-                    </Typography>
-                  </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                    {stats.activeOrganizations}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <PeopleIcon sx={{ fontSize: 20, color: '#2196F3' }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      Parents
-                    </Typography>
-                  </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                    {stats.totalParents}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <BarChartIcon sx={{ fontSize: 20, color: '#9C27B0' }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      Total Check-ins
-                    </Typography>
-                  </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                    {stats.totalCheckIns}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <AccessTimeIcon sx={{ fontSize: 20, color: '#FF9800' }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      Today
-                    </Typography>
-                  </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                    {stats.todayCheckIns}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
-            <Box sx={{ display: 'flex', width: '100%' }}>
-              <Card sx={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-                <CardContent sx={{ p: { xs: 2, sm: 3 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <TrendingUpIcon sx={{ fontSize: 20, color: '#E91E63' }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      This Week
-                    </Typography>
-                  </Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                    {stats.weeklyCheckIns}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Box>
+                  </CardContent>
+                </Card>
+              </Box>
+            ))}
           </Box>
         )}
 
@@ -889,7 +843,17 @@ export default function OrganizationsPage() {
               </Typography>
             </Box>
           ) : (
-            <TableContainer component={Paper} sx={{ boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)', borderRadius: 2 }}>
+            <TableContainer 
+              component={Paper} 
+              sx={{ 
+                boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)', 
+                borderRadius: 2,
+                transition: 'box-shadow 0.3s ease',
+                '&:hover': {
+                  boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.12)',
+                },
+              }}
+            >
               <Table>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f8fafc' }}>
@@ -912,6 +876,7 @@ export default function OrganizationsPage() {
                       <TableRow 
                         key={org.id}
                         sx={{ 
+                          transition: 'background-color 0.2s ease',
                           '&:hover': { bgcolor: '#f9fafb' },
                           '&:last-child td': { borderBottom: 0 }
                         }}

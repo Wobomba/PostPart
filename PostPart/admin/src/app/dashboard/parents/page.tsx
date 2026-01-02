@@ -6,6 +6,7 @@ import DashboardLayout from '../../../components/DashboardLayout';
 import ParentForm from '../../../components/ParentForm';
 import { supabase } from '../../../../lib/supabase';
 import { logActivity } from '../../../utils/activityLogger';
+import { generateParentPDF } from '../../../utils/pdfExport';
 import {
   Box,
   Card,
@@ -432,83 +433,35 @@ export default function ParentsPage() {
   const generateParentReport = () => {
     if (!viewingParent) return;
 
-    const reportData = {
-      report_generated: new Date().toISOString(),
-      report_type: 'Parent Detailed Report',
-      parent: {
-        id: viewingParent.id,
-        name: viewingParent.full_name,
-        email: viewingParent.email,
-        phone: viewingParent.phone,
-        status: viewingParent.status,
-        organization: viewingParent.organization?.name || 'None',
-        organization_id: viewingParent.organization_id,
-        joined: new Date(viewingParent.created_at).toLocaleDateString(),
-      },
-      statistics: {
-        childrenCount: viewingParent.childrenCount,
-        totalCheckIns: viewingParent.checkInCount,
-        lastActivity: viewingParent.lastCheckInDate
-          ? new Date(viewingParent.lastCheckInDate).toLocaleString()
-          : 'Never',
-      },
-      children: viewChildren.map(c => ({
-        id: c.id,
-        name: `${c.first_name} ${c.last_name}`,
-        firstName: c.first_name,
-        lastName: c.last_name,
-        dateOfBirth: c.date_of_birth,
-        age: Math.floor((new Date().getTime() - new Date(c.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 365)),
-        allergies: c.allergies || 'None',
-        notes: c.notes || 'None',
-        created: new Date(c.created_at).toLocaleDateString(),
-      })),
-      checkInHistory: viewRecentCheckIns.map((c: any) => {
-        const child = Array.isArray(c.children) ? c.children[0] : c.children;
-        const center = Array.isArray(c.centers) ? c.centers[0] : c.centers;
-        return {
-          id: c.id,
-          date: new Date(c.check_in_time).toLocaleDateString(),
-          time: new Date(c.check_in_time).toLocaleTimeString(),
-          fullTimestamp: new Date(c.check_in_time).toISOString(),
-          child: {
-            id: child?.id,
-            name: child ? `${child.first_name} ${child.last_name}` : 'Unknown',
-            firstName: child?.first_name,
-            lastName: child?.last_name,
-          },
-          center: {
-            id: center?.id,
-            name: center?.name || 'Unknown',
-            city: center?.city,
-            state: center?.state,
-            address: center?.address,
-            fullLocation: center ? `${center.city}, ${center.state}` : 'N/A',
-          },
-          notes: c.notes || 'None',
-        };
-      }),
-      security: {
-        access_logged: true,
-        accessed_by: 'Admin User',
-        accessed_at: new Date().toISOString(),
-        data_classification: 'SENSITIVE - PERSONAL INFORMATION',
-      },
-    };
+    // Prepare check-ins data
+    const checkIns = viewRecentCheckIns.map((c: any) => {
+      const child = Array.isArray(c.children) ? c.children[0] : c.children;
+      const center = Array.isArray(c.centers) ? c.centers[0] : c.centers;
+      return {
+        check_in_time: c.check_in_time,
+        center: { name: center?.name || 'Unknown' },
+        child: {
+          first_name: child?.first_name || 'Unknown',
+          last_name: child?.last_name || '',
+        },
+      };
+    });
 
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${viewingParent.full_name.replace(/\s+/g, '_')}_report_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    generateParentPDF({
+      full_name: viewingParent.full_name,
+      email: viewingParent.email,
+      phone: viewingParent.phone,
+      status: viewingParent.status,
+      created_at: viewingParent.created_at,
+      organization: viewingParent.organization,
+      children: viewChildren,
+      checkIns: checkIns,
+      totalCheckIns: viewingParent.checkInCount,
+    });
 
     // Log the export action
     logActivity({
-      activityType: 'parent_details_updated',
+      activityType: 'report_exported',
       entityType: 'parent',
       entityId: viewingParent.id,
       entityName: viewingParent.full_name,
@@ -548,10 +501,19 @@ export default function ParentsPage() {
               mb: 4,
             }}
           >
-            <Card>
+            <Card sx={{
+              animation: 'fadeIn 0.5s ease-in',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <PersonIcon sx={{ fontSize: 20, color: '#E91E63' }} />
+                  <PersonIcon className="stat-icon" sx={{ fontSize: 20, color: '#E91E63', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Total
                   </Typography>
@@ -561,10 +523,19 @@ export default function ParentsPage() {
                 </Typography>
               </CardContent>
             </Card>
-            <Card>
+            <Card sx={{
+              animation: 'fadeIn 0.5s ease-in 0.1s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <CheckCircleIcon sx={{ fontSize: 20, color: '#4CAF50' }} />
+                  <CheckCircleIcon className="stat-icon" sx={{ fontSize: 20, color: '#4CAF50', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Active
                   </Typography>
@@ -574,10 +545,19 @@ export default function ParentsPage() {
                 </Typography>
               </CardContent>
             </Card>
-            <Card>
+            <Card sx={{
+              animation: 'fadeIn 0.5s ease-in 0.2s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <WarningIcon sx={{ fontSize: 20, color: '#FF9800' }} />
+                  <WarningIcon className="stat-icon" sx={{ fontSize: 20, color: '#FF9800', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Inactive
                   </Typography>
@@ -587,10 +567,19 @@ export default function ParentsPage() {
                 </Typography>
               </CardContent>
             </Card>
-            <Card>
+            <Card sx={{
+              animation: 'fadeIn 0.5s ease-in 0.3s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <BlockIcon sx={{ fontSize: 20, color: '#f44336' }} />
+                  <BlockIcon className="stat-icon" sx={{ fontSize: 20, color: '#f44336', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Suspended
                   </Typography>
@@ -600,10 +589,19 @@ export default function ParentsPage() {
                 </Typography>
               </CardContent>
             </Card>
-            <Card>
+            <Card sx={{
+              animation: 'fadeIn 0.5s ease-in 0.4s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <CheckCircleOutlineIcon sx={{ fontSize: 20, color: '#2196F3' }} />
+                  <CheckCircleOutlineIcon className="stat-icon" sx={{ fontSize: 20, color: '#2196F3', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Total Check-ins
                   </Typography>
@@ -613,10 +611,19 @@ export default function ParentsPage() {
                 </Typography>
               </CardContent>
             </Card>
-            <Card>
+            <Card sx={{
+              animation: 'fadeIn 0.5s ease-in 0.5s backwards',
+              '@keyframes fadeIn': { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.12)',
+                '& .stat-icon': { transform: 'scale(1.1) rotate(5deg)' },
+              },
+            }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <CheckCircleOutlineIcon sx={{ fontSize: 20, color: '#9C27B0' }} />
+                  <CheckCircleOutlineIcon className="stat-icon" sx={{ fontSize: 20, color: '#9C27B0', transition: 'transform 0.3s ease' }} />
                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Today
                   </Typography>

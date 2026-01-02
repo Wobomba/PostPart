@@ -339,127 +339,235 @@ export default function BulkNotificationsPage() {
 
         {/* Send Notification Tab */}
         {activeTab === 0 && (
-          <Card>
-            <CardContent sx={{ p: 4 }}>
-              {error && (
-                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-                  {error}
-                </Alert>
-              )}
-              
-              {success && (
-                <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
-                  {success}
-                </Alert>
-              )}
-
-              <Box component="form" onSubmit={handleSend}>
-                <TextField
-                  fullWidth
-                  label="Notification Title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
-                  sx={{ mb: 3 }}
-                  placeholder="e.g., New Feature Announcement"
-                />
-
-                <TextField
-                  fullWidth
-                  label="Message"
-                  value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  required
-                  multiline
-                  rows={4}
-                  sx={{ mb: 3 }}
-                  placeholder="Enter your message here..."
-                />
-
-                <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: '1fr 1fr' }} gap={3} mb={3}>
-                  <FormControl fullWidth>
-                    <InputLabel>Type</InputLabel>
-                    <Select
-                      value={formData.type}
-                      label="Type"
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                    >
-                      <MenuItem value="announcement">Announcement</MenuItem>
-                      <MenuItem value="reminder">Reminder</MenuItem>
-                      <MenuItem value="alert">Alert</MenuItem>
-                      <MenuItem value="center_update">Centre Update</MenuItem>
-                      <MenuItem value="approval">Approval Required</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  <FormControl fullWidth>
-                    <InputLabel>Priority</InputLabel>
-                    <Select
-                      value={formData.priority}
-                      label="Priority"
-                      onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                    >
-                      <MenuItem value="low">Low</MenuItem>
-                      <MenuItem value="normal">Normal</MenuItem>
-                      <MenuItem value="high">High</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Box>
-
-                <FormControl fullWidth sx={{ mb: 3 }}>
-                  <InputLabel>Send To</InputLabel>
-                  <Select
-                    value={formData.target_type}
-                    label="Send To"
-                    onChange={(e) => setFormData({ ...formData, target_type: e.target.value as any, target_id: '' })}
-                  >
-                    <MenuItem value="all">All Active Parents</MenuItem>
-                    <MenuItem value="organization">Specific Organisation</MenuItem>
-                    {/* <MenuItem value="center">Parents at Specific Centre</MenuItem> */}
-                  </Select>
-                </FormControl>
-
-                {formData.target_type === 'organization' && (
-                  <FormControl fullWidth sx={{ mb: 3 }}>
-                    <InputLabel>Select Organisation</InputLabel>
-                    <Select
-                      value={formData.target_id}
-                      label="Select Organisation"
-                      onChange={(e) => setFormData({ ...formData, target_id: e.target.value })}
-                    >
-                      {organizations.map((org) => (
-                        <MenuItem key={org.id} value={org.id}>
-                          {org.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+          <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+            <Card sx={{ maxWidth: 800, width: '100%' }}>
+              <CardContent sx={{ p: { xs: 3, sm: 4, md: 5 } }}>
+                {error && (
+                  <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+                    {error}
+                  </Alert>
+                )}
+                
+                {success && (
+                  <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
+                    {success}
+                  </Alert>
                 )}
 
-                <Alert severity="info" sx={{ mb: 3 }}>
-                  <Typography variant="body2">
-                    <strong>Estimated Recipients:</strong> {recipientCount} active parent{recipientCount !== 1 ? 's' : ''}
-                  </Typography>
-                </Alert>
+                <Box component="form" onSubmit={handleSend}>
+                  {/* Title Input */}
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1e293b' }}>
+                      Notification Title *
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      required
+                      placeholder="e.g., New Feature Announcement"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          '&:hover fieldset': {
+                            borderColor: '#E91E63',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#E91E63',
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
 
-                <Button
-                  type="submit"
-                  variant="contained"
-                  fullWidth
-                  size="large"
-                  disabled={sending || recipientCount === 0}
-                  startIcon={sending ? <CircularProgress size={20} /> : <SendIcon />}
-                  sx={{ 
-                    bgcolor: '#E91E63', 
-                    '&:hover': { bgcolor: '#C2185B' },
-                    py: 1.5,
-                  }}
-                >
-                  {sending ? 'Sending...' : `Send to ${recipientCount} Parent${recipientCount !== 1 ? 's' : ''}`}
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
+                  {/* Message Input */}
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1e293b' }}>
+                      Message *
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={formData.message}
+                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                      required
+                      multiline
+                      rows={5}
+                      placeholder="Enter your message here..."
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          '&:hover fieldset': {
+                            borderColor: '#E91E63',
+                          },
+                          '&.Mui-focused fieldset': {
+                            borderColor: '#E91E63',
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+
+                  {/* Type and Priority */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3, mb: 3 }}>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1e293b' }}>
+                        Type
+                      </Typography>
+                      <FormControl fullWidth>
+                        <Select
+                          value={formData.type}
+                          onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                          sx={{
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E91E63',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E91E63',
+                            },
+                          }}
+                        >
+                          <MenuItem value="announcement">Announcement</MenuItem>
+                          <MenuItem value="reminder">Reminder</MenuItem>
+                          <MenuItem value="alert">Alert</MenuItem>
+                          <MenuItem value="center_update">Centre Update</MenuItem>
+                          <MenuItem value="approval">Approval Required</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Box>
+
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1e293b' }}>
+                        Priority
+                      </Typography>
+                      <FormControl fullWidth>
+                        <Select
+                          value={formData.priority}
+                          onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                          sx={{
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E91E63',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E91E63',
+                            },
+                          }}
+                        >
+                          <MenuItem value="normal">Normal</MenuItem>
+                          <MenuItem value="high">High</MenuItem>
+                          <MenuItem value="low">Low</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </Box>
+
+                  {/* Send To */}
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1e293b' }}>
+                      Send To
+                    </Typography>
+                    <FormControl fullWidth>
+                      <Select
+                        value={formData.target_type}
+                        onChange={(e) => setFormData({ ...formData, target_type: e.target.value as any, target_id: '' })}
+                        sx={{
+                          '&:hover .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#E91E63',
+                          },
+                          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#E91E63',
+                          },
+                        }}
+                      >
+                        <MenuItem value="all">All Active Parents</MenuItem>
+                        <MenuItem value="organization">Specific Organisation</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+
+                  {/* Organisation Selection */}
+                  {formData.target_type === 'organization' && (
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1e293b' }}>
+                        Select Organisation
+                      </Typography>
+                      <FormControl fullWidth>
+                        <Select
+                          value={formData.target_id}
+                          onChange={(e) => setFormData({ ...formData, target_id: e.target.value })}
+                          sx={{
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E91E63',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#E91E63',
+                            },
+                          }}
+                        >
+                          {organizations.map((org) => (
+                            <MenuItem key={org.id} value={org.id}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <BusinessIcon sx={{ fontSize: 18, color: '#64748b' }} />
+                                {org.name}
+                              </Box>
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  )}
+
+                  {/* Recipient Count */}
+                  <Alert 
+                    severity="info" 
+                    icon={<PersonIcon />}
+                    sx={{ 
+                      mb: 3,
+                      bgcolor: '#E3F2FD',
+                      '& .MuiAlert-icon': {
+                        color: '#1976D2',
+                      },
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        Estimated Recipients:
+                      </Typography>
+                      <Typography variant="body2">
+                        {recipientCount} active parent{recipientCount !== 1 ? 's' : ''}
+                      </Typography>
+                    </Box>
+                  </Alert>
+
+                  {/* Send Button */}
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    fullWidth
+                    size="large"
+                    disabled={sending || recipientCount === 0}
+                    startIcon={sending ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <SendIcon />}
+                    sx={{ 
+                      bgcolor: '#E91E63', 
+                      '&:hover': { bgcolor: '#C2185B' },
+                      py: 1.75,
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      boxShadow: '0 4px 6px -1px rgb(233 30 99 / 0.3)',
+                      '&:hover': {
+                        boxShadow: '0 10px 15px -3px rgb(233 30 99 / 0.4)',
+                        bgcolor: '#C2185B',
+                      },
+                      '&:disabled': {
+                        bgcolor: '#E0E0E0',
+                        color: '#9E9E9E',
+                      },
+                    }}
+                  >
+                    {sending ? 'Sending...' : `Send to ${recipientCount} Parent${recipientCount !== 1 ? 's' : ''}`}
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
         )}
 
         {/* History Tab */}

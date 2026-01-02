@@ -418,10 +418,26 @@ export default function DashboardPage() {
           }}
         >
           {/* Today's Activity */}
-          <Card>
+          <Card
+            sx={{
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.12)',
+              },
+            }}
+          >
             <CardContent sx={{ p: { xs: 2.5, sm: 3, md: 3.5 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <AccessTimeIcon sx={{ color: '#FF9800', fontSize: { xs: 20, sm: 24 } }} />
+                <AccessTimeIcon 
+                  sx={{ 
+                    color: '#FF9800', 
+                    fontSize: { xs: 20, sm: 24 },
+                    transition: 'transform 0.2s ease',
+                    '&:hover': {
+                      transform: 'rotate(15deg) scale(1.1)',
+                    },
+                  }} 
+                />
                 <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9375rem', sm: '1rem', md: '1.125rem' }, color: '#1e293b' }}>
                   Today's Activity
                 </Typography>
@@ -472,7 +488,14 @@ export default function DashboardPage() {
           </Card>
 
           {/* Quick Actions */}
-          <Card>
+          <Card
+            sx={{
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.12)',
+              },
+            }}
+          >
             <CardContent sx={{ p: { xs: 2.5, sm: 3, md: 3.5 } }}>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, fontSize: { xs: '0.9375rem', sm: '1rem', md: '1.125rem' }, color: '#1e293b' }}>
                 Quick Actions
@@ -489,13 +512,19 @@ export default function DashboardPage() {
                     textTransform: 'none',
                     borderColor: '#E91E63',
                     color: '#E91E63',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
                       bgcolor: '#E91E63',
                       color: '#ffffff',
                       borderColor: '#E91E63',
+                      transform: 'translateX(4px)',
                     },
                     '& .MuiButton-startIcon': {
                       color: 'inherit',
+                      transition: 'transform 0.2s ease',
+                    },
+                    '&:hover .MuiButton-startIcon': {
+                      transform: 'scale(1.2)',
                     },
                   }}
                 >
@@ -512,13 +541,19 @@ export default function DashboardPage() {
                     textTransform: 'none',
                     borderColor: '#E91E63',
                     color: '#E91E63',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
                       bgcolor: '#E91E63',
                       color: '#ffffff',
                       borderColor: '#E91E63',
+                      transform: 'translateX(4px)',
                     },
                     '& .MuiButton-startIcon': {
                       color: 'inherit',
+                      transition: 'transform 0.2s ease',
+                    },
+                    '&:hover .MuiButton-startIcon': {
+                      transform: 'scale(1.2)',
                     },
                   }}
                 >
@@ -535,13 +570,19 @@ export default function DashboardPage() {
                     textTransform: 'none',
                     borderColor: '#E91E63',
                     color: '#E91E63',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
                       bgcolor: '#E91E63',
                       color: '#ffffff',
                       borderColor: '#E91E63',
+                      transform: 'translateX(4px)',
                     },
                     '& .MuiButton-startIcon': {
                       color: 'inherit',
+                      transition: 'transform 0.2s ease',
+                    },
+                    '&:hover .MuiButton-startIcon': {
+                      transform: 'scale(1.2)',
                     },
                   }}
                 >
@@ -563,10 +604,27 @@ export default function DashboardPage() {
           }}
         >
           {/* Pending Actions / Alerts */}
-          <Card>
+          <Card
+            sx={{
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.12)',
+              },
+            }}
+          >
             <CardContent sx={{ p: { xs: 2.5, sm: 3, md: 3.5 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <WarningIcon sx={{ color: '#FF5722', fontSize: { xs: 20, sm: 24 } }} />
+                <WarningIcon 
+                  sx={{ 
+                    color: '#FF5722', 
+                    fontSize: { xs: 20, sm: 24 },
+                    animation: stats.unassociatedParents > 0 || stats.unverifiedCenters > 0 ? 'pulse 2s ease-in-out infinite' : 'none',
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+                      '50%': { opacity: 0.7, transform: 'scale(1.1)' },
+                    },
+                  }} 
+                />
                 <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9375rem', sm: '1rem', md: '1.125rem' }, color: '#1e293b' }}>
                   Pending Actions
                 </Typography>
@@ -646,10 +704,26 @@ export default function DashboardPage() {
           </Card>
 
           {/* Top Active Centres */}
-          <Card>
+          <Card
+            sx={{
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.12)',
+              },
+            }}
+          >
             <CardContent sx={{ p: { xs: 2.5, sm: 3, md: 3.5 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                <TrendingUpIcon sx={{ color: '#9C27B0', fontSize: { xs: 20, sm: 24 } }} />
+                <TrendingUpIcon 
+                  sx={{ 
+                    color: '#9C27B0', 
+                    fontSize: { xs: 20, sm: 24 },
+                    transition: 'transform 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                    },
+                  }} 
+                />
                 <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9375rem', sm: '1rem', md: '1.125rem' }, color: '#1e293b' }}>
                   Top Active Centres
                 </Typography>
@@ -706,6 +780,11 @@ export default function DashboardPage() {
           flexDirection: 'column',
           overflow: 'hidden',
           width: '100%',
+          maxHeight: { xs: 500, md: 600 },
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.12)',
+          },
         }}>
           <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2, sm: 2.5, md: 3 }, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9375rem', sm: '1rem', md: '1.125rem' }, color: '#1e293b' }}>
@@ -720,6 +799,7 @@ export default function DashboardPage() {
               overflowY: 'auto',
               width: '100%',
               maxWidth: '100%',
+              maxHeight: '100%',
               '&::-webkit-scrollbar': {
                 height: 8,
                 width: 8,
@@ -859,6 +939,11 @@ export default function DashboardPage() {
           flexDirection: 'column',
           overflow: 'hidden',
           width: '100%',
+          maxHeight: { xs: 500, md: 600 },
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.12)',
+          },
         }}>
           <Box sx={{ px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2, sm: 2.5, md: 3 }, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '0.9375rem', sm: '1rem', md: '1.125rem' }, color: '#1e293b' }}>
@@ -890,6 +975,7 @@ export default function DashboardPage() {
               overflowY: 'auto',
               width: '100%',
               maxWidth: '100%',
+              maxHeight: '100%',
               '&::-webkit-scrollbar': {
                 height: 8,
                 width: 8,
@@ -1072,7 +1158,7 @@ interface ActivityMetricProps {
 function ActivityMetric({ label, value, loading, trend = 'neutral' }: ActivityMetricProps) {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.8125rem' } }}>
+      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
         {label}
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
@@ -1098,13 +1184,32 @@ function StatCard({ title, value, icon, loading }: StatCardProps) {
   };
 
   return (
-    <Card sx={{ 
-      height: '100%', 
-      width: '100%',
-      minWidth: 0,
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
+    <Card 
+      sx={{ 
+        height: '100%', 
+        width: '100%',
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        cursor: 'default',
+        '&:hover': {
+          transform: 'translateY(-4px)',
+          boxShadow: '0 12px 24px -10px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        },
+        animation: 'fadeIn 0.5s ease-out',
+        '@keyframes fadeIn': {
+          '0%': {
+            opacity: 0,
+            transform: 'translateY(10px)',
+          },
+          '100%': {
+            opacity: 1,
+            transform: 'translateY(0)',
+          },
+        },
+      }}
+    >
       <CardContent sx={{ 
         p: { xs: 2, sm: 3 }, 
         display: 'flex', 
@@ -1128,14 +1233,25 @@ function StatCard({ title, value, icon, loading }: StatCardProps) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              transition: 'transform 0.2s ease',
               '& svg': {
                 fontSize: 20,
+              },
+              '&:hover': {
+                transform: 'scale(1.1) rotate(5deg)',
               },
             }}
           >
             {icon}
           </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              fontSize: '0.75rem',
+              transition: 'color 0.2s ease',
+            }}
+          >
             {title}
           </Typography>
         </Box>
@@ -1146,9 +1262,31 @@ function StatCard({ title, value, icon, loading }: StatCardProps) {
           sx={{ 
             fontWeight: 700, 
             color: '#1e293b',
+            transition: 'color 0.3s ease',
           }}
         >
-          {loading ? <CircularProgress size={20} sx={{ color: getIconColor() }} /> : value.toLocaleString()}
+          {loading ? (
+            <CircularProgress 
+              size={20} 
+              sx={{ 
+                color: getIconColor(),
+                animation: 'pulse 1.5s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.5 },
+                },
+              }} 
+            />
+          ) : (
+            <span
+              style={{
+                display: 'inline-block',
+                animation: 'countUp 0.5s ease-out',
+              }}
+            >
+              {value.toLocaleString()}
+            </span>
+          )}
         </Typography>
       </CardContent>
     </Card>
