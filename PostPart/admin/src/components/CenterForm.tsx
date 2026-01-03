@@ -265,7 +265,29 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
 
   return (
     <form onSubmit={handleSubmit}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: 3,
+        '& .MuiInputBase-root': {
+          fontSize: '0.875rem',
+        },
+        '& .MuiInputLabel-root': {
+          fontSize: '0.875rem',
+        },
+        '& .MuiFormHelperText-root': {
+          fontSize: '0.75rem',
+        },
+        '& .MuiSelect-select': {
+          fontSize: '0.875rem',
+        },
+        '& .MuiMenuItem-root': {
+          fontSize: '0.875rem',
+        },
+        '& .MuiChip-label': {
+          fontSize: '0.8125rem',
+        },
+      }}>
         {error && (
           <Alert severity="error" onClose={() => setError(null)}>
             {error}
@@ -338,6 +360,15 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
               value={formData.district}
               onChange={(e) => handleChange('district', e.target.value)}
               label="District (Optional)"
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    '& .MuiMenuItem-root': {
+                      fontSize: '0.875rem',
+                    },
+                  },
+                },
+              }}
               sx={{
                 '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#E91E63' },
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#E91E63' },
@@ -366,6 +397,15 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
               value={formData.region}
               onChange={(e) => handleChange('region', e.target.value)}
               label="Region (Optional)"
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    '& .MuiMenuItem-root': {
+                      fontSize: '0.875rem',
+                    },
+                  },
+                },
+              }}
               sx={{
                 '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#E91E63' },
                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#E91E63' },
@@ -495,6 +535,15 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
             value={formData.operating_schedule}
             onChange={(e) => handleChange('operating_schedule', e.target.value)}
             label="Operating Schedule"
+            MenuProps={{
+              PaperProps: {
+                sx: {
+                  '& .MuiMenuItem-root': {
+                    fontSize: '0.875rem',
+                  },
+                },
+              },
+            }}
             sx={{
               '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#E91E63' },
               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#E91E63' },

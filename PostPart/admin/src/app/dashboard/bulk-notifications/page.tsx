@@ -322,11 +322,12 @@ export default function BulkNotificationsPage() {
     <DashboardLayout>
       <Box sx={{ width: '100%', maxWidth: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 }}>
         <Typography 
-          variant="h4" 
+          variant="h5" 
           sx={{ 
-            fontWeight: 700, 
+            fontWeight: 600,
+            fontSize: { xs: '1.25rem', sm: '1.375rem', md: '1.5rem' },
+            color: '#1e293b',
             mb: 3,
-            fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
           }}
         >
           Bulk Notifications

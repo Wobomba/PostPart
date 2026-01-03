@@ -7,6 +7,7 @@ import DashboardLayout from '../../../components/DashboardLayout';
 import OrganizationForm from '../../../components/OrganizationForm';
 import { supabase } from '../../../../lib/supabase';
 import { createSlug } from '../../../lib/slug';
+import { logActivity, ActivityDescriptions } from '../../../utils/activityLogger';
 import {
   Box,
   Grid,
@@ -581,6 +582,19 @@ export default function OrganizationsPage() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete organisation');
       }
+
+      // Log deletion activity
+      await logActivity({
+        activityType: 'organisation_deleted',
+        entityType: 'organisation',
+        entityId: organizationToDelete.id,
+        entityName: organizationToDelete.name,
+        description: ActivityDescriptions.organisationDeleted(organizationToDelete.name),
+        metadata: {
+          had_parents: organizationToDelete.parent_count > 0,
+          parent_count: organizationToDelete.parent_count,
+        },
+      });
 
       // Remove the organization from the local state immediately
       setOrganizations(prev => prev.filter(org => org.id !== organizationToDelete.id));
