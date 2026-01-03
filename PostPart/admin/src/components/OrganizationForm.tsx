@@ -27,6 +27,7 @@ import {
   CalendarToday as CalendarTodayIcon,
 } from '@mui/icons-material';
 import { createSlug } from '../lib/slug';
+import { logActivity, ActivityDescriptions } from '../utils/activityLogger';
 import type { Organization } from '../../../../shared/types';
 
 interface OrganizationFormProps {
@@ -131,6 +132,46 @@ export default function OrganizationForm({ organization, onSuccess, onCancel }: 
 
         const updatedOrg = await response.json();
         
+        // Log status change if status was updated
+        if (organization.status !== formData.status) {
+          await logActivity({
+            activityType: 'organisation_status_changed',
+            entityType: 'organisation',
+            entityId: organization.id,
+            entityName: formData.name,
+            description: ActivityDescriptions.organisationStatusChanged(
+              formData.name,
+              organization.status,
+              formData.status
+            ),
+            metadata: {
+              old_status: organization.status,
+              new_status: formData.status,
+            },
+          });
+        }
+        
+        // Log update activity
+        const updatedFields: string[] = [];
+        Object.keys(dataToSubmit).forEach((key) => {
+          if (organization[key as keyof Organization] !== dataToSubmit[key]) {
+            updatedFields.push(key);
+          }
+        });
+        
+        if (updatedFields.length > 0) {
+          await logActivity({
+            activityType: 'organisation_updated',
+            entityType: 'organisation',
+            entityId: organization.id,
+            entityName: formData.name,
+            description: ActivityDescriptions.organisationUpdated(formData.name, updatedFields),
+            metadata: {
+              updated_fields: updatedFields,
+            },
+          });
+        }
+        
         // Redirect to updated organization using slug
         if (!onSuccess) {
           router.push(`/dashboard/organizations/${createSlug(dataToSubmit.name)}`);
@@ -151,6 +192,21 @@ export default function OrganizationForm({ organization, onSuccess, onCancel }: 
         }
 
         const newOrg = await response.json();
+        
+        // Log creation activity
+        await logActivity({
+          activityType: 'organisation_created',
+          entityType: 'organisation',
+          entityId: newOrg.id,
+          entityName: formData.name,
+          description: ActivityDescriptions.organisationCreated(formData.name),
+          metadata: {
+            industry: formData.industry,
+            size: formData.size,
+            plan_type: formData.plan_type,
+            status: formData.status,
+          },
+        });
         
         // Redirect to new organization using slug
         if (!onSuccess && newOrg) {
@@ -192,6 +248,21 @@ export default function OrganizationForm({ organization, onSuccess, onCancel }: 
           borderRadius: 2,
           width: '100%',
           maxWidth: '100%',
+          '& .MuiInputBase-root': {
+            fontSize: '0.875rem',
+          },
+          '& .MuiInputLabel-root': {
+            fontSize: '0.875rem',
+          },
+          '& .MuiFormHelperText-root': {
+            fontSize: '0.75rem',
+          },
+          '& .MuiSelect-select': {
+            fontSize: '0.875rem',
+          },
+          '& .MuiMenuItem-root': {
+            fontSize: '0.875rem',
+          },
         }}
       >
         <CardContent sx={{ p: { xs: 3, sm: 4, md: 4 }, width: '100%', maxWidth: '100%' }}>
@@ -255,6 +326,17 @@ export default function OrganizationForm({ organization, onSuccess, onCancel }: 
                 InputLabelProps={{
                   shrink: true,
                   sx: { '&.Mui-focused': { color: '#E91E63' } },
+                }}
+                SelectProps={{
+                  MenuProps: {
+                    PaperProps: {
+                      sx: {
+                        '& .MuiMenuItem-root': {
+                          fontSize: '0.875rem',
+                        },
+                      },
+                    },
+                  },
                 }}
                 sx={{
                   width: '100%',
@@ -477,6 +559,17 @@ export default function OrganizationForm({ organization, onSuccess, onCancel }: 
                   shrink: true,
                   sx: { '&.Mui-focused': { color: '#E91E63' } },
                 }}
+                SelectProps={{
+                  MenuProps: {
+                    PaperProps: {
+                      sx: {
+                        '& .MuiMenuItem-root': {
+                          fontSize: '0.875rem',
+                        },
+                      },
+                    },
+                  },
+                }}
                 sx={{
                   width: '100%',
                   minWidth: 0,
@@ -525,6 +618,15 @@ export default function OrganizationForm({ organization, onSuccess, onCancel }: 
                   onChange={handleChange('status')}
                   inputProps={{
                     'aria-label': 'Status',
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        '& .MuiMenuItem-root': {
+                          fontSize: '0.875rem',
+                        },
+                      },
+                    },
                   }}
                   sx={{
                     borderRadius: 1.5,

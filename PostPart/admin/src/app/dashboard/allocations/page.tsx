@@ -167,7 +167,14 @@ export default function AllocationsPage() {
     <DashboardLayout>
       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 4, sm: 5, md: 6 }, flexWrap: 'wrap', gap: 2 }}>
-          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+          <Typography 
+            variant="h5" 
+            sx={{ 
+              fontWeight: 600,
+              fontSize: { xs: '1.25rem', sm: '1.375rem', md: '1.5rem' },
+              color: '#1e293b',
+            }}
+          >
             Visit Allocations
           </Typography>
           <Button
@@ -342,7 +349,7 @@ export default function AllocationsPage() {
         {/* Allocations Table */}
         <Box sx={{ bgcolor: 'background.paper', borderRadius: 2, boxShadow: 1, flexGrow: 1 }}>
           <Box sx={{ px: { xs: 3, sm: 4, md: 4 }, py: { xs: 2, sm: 2.5, md: 3 }, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', sm: '1.125rem' } }}>
               Current Allocations
             </Typography>
           </Box>
