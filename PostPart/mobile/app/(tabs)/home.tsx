@@ -6,34 +6,45 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  TextInput,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { AnimatedCard } from '../../components/AnimatedCard';
 import { NotificationsModal } from '../../components/NotificationsModal';
+import { OrganizationSelectionModal } from '../../components/OrganizationSelectionModal';
 import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { HapticFeedback } from '../../utils/effects';
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     centersVisited: 0,
     totalCheckIns: 0,
     unreadNotifications: 0,
   });
   const [recentCheckIns, setRecentCheckIns] = useState<any[]>([]);
+  const [activeCheckIn, setActiveCheckIn] = useState<any | null>(null);
   const [frequentCenters, setFrequentCenters] = useState<any[]>([]);
   const [featuredCenters, setFeaturedCenters] = useState<any[]>([]);
   const [children, setChildren] = useState<any[]>([]);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [organizationModalVisible, setOrganizationModalVisible] = useState(false);
+
+  // Refresh data when screen comes into focus (e.g., after checkout)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadUserData();
+    }, [])
+  );
 
   useEffect(() => {
     loadUserData();
@@ -62,8 +73,28 @@ export default function HomeScreen() {
         )
         .subscribe();
 
+      // Subscribe to check-ins for this user to update active check-in status
+      const checkInsChannel = supabase
+        .channel('home-checkins-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'checkins',
+            filter: `parent_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('Check-in change detected:', payload);
+            // Reload user data to update active check-in and recent check-ins
+            loadUserData();
+          }
+        )
+        .subscribe();
+
       return () => {
         supabase.removeChannel(notificationChannel);
+        supabase.removeChannel(checkInsChannel);
       };
     };
 
@@ -99,23 +130,58 @@ export default function HomeScreen() {
 
   const loadUserData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: getUserError } = await supabase.auth.getUser();
+      
+      // Handle refresh token errors
+      if (getUserError) {
+        if (getUserError.message?.includes('Refresh Token') || 
+            getUserError.message?.includes('refresh_token') ||
+            getUserError.message?.includes('Invalid Refresh Token')) {
+          console.warn('Invalid refresh token, clearing session:', getUserError.message);
+          await supabase.auth.signOut();
+          router.replace('/(auth)/welcome');
+          return;
+        }
+        // For other errors, continue but set guest name
+        setUserName('Guest');
+        return;
+      }
+      
       if (!user) {
         setUserName('Guest');
         return;
       }
 
+      // Store user ID for the organization modal
+      setUserId(user.id);
+
       // Load profile - with proper fallback hierarchy
       try {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, organization_id')
           .eq('id', user.id)
           .single();
         
-        if (!profileError && profile && profile.full_name) {
-          // Priority 1: Use full_name from profiles table
-          setUserName(profile.full_name);
+        if (!profileError && profile) {
+          // Check if user has no organization set - show modal
+          if (!profile.organization_id) {
+            setOrganizationModalVisible(true);
+          }
+          
+          // Set user name
+          if (profile.full_name) {
+            setUserName(profile.full_name);
+          } else {
+            // Priority 2: Use display name from auth metadata
+            const authDisplayName = user.user_metadata?.full_name || user.user_metadata?.name;
+            if (authDisplayName) {
+              setUserName(authDisplayName);
+            } else {
+              // Priority 3: Last resort - use "Parent"
+              setUserName('Parent');
+            }
+          }
         } else {
           // Priority 2: Use display name from auth metadata
           const authDisplayName = user.user_metadata?.full_name || user.user_metadata?.name;
@@ -152,26 +218,61 @@ export default function HomeScreen() {
         setChildren([]);
       }
 
-      // Load recent check-ins - with error handling
+      // Load recent check-ins - with error handling (max 5)
       try {
         const { data: recentCheckInsData, error: checkInsError } = await supabase
           .from('checkins')
           .select(`
             id,
             check_in_time,
+            check_out_time,
             child_id,
             children (name),
             centers (id, name, city)
           `)
           .eq('parent_id', user.id)
           .order('check_in_time', { ascending: false })
-          .limit(3);
+          .limit(5);
         if (!checkInsError) {
           setRecentCheckIns(recentCheckInsData || []);
         }
       } catch (err) {
         // Silently handle - table may not exist yet
         setRecentCheckIns([]);
+      }
+
+      // Load active check-in (check-in without check-out) - get the most recent one
+      try {
+        const { data: activeCheckInData, error: activeCheckInError } = await supabase
+          .from('checkins')
+          .select(`
+            id,
+            check_in_time,
+            check_out_time,
+            child_id,
+            children (first_name, last_name),
+            centers (id, name)
+          `)
+          .eq('parent_id', user.id)
+          .is('check_out_time', null)
+          .order('check_in_time', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (activeCheckInError) {
+          console.error('Error loading active check-in:', activeCheckInError);
+          setActiveCheckIn(null);
+        } else {
+          // Only set if there's actually an active check-in (no check_out_time)
+          if (activeCheckInData && !activeCheckInData.check_out_time) {
+            setActiveCheckIn(activeCheckInData);
+          } else {
+            setActiveCheckIn(null);
+          }
+        }
+      } catch (err) {
+        console.error('Error in active check-in load:', err);
+        setActiveCheckIn(null);
       }
 
       // Load all check-ins for stats - with error handling
@@ -279,13 +380,19 @@ export default function HomeScreen() {
         <View style={styles.headerIcons}>
           <TouchableOpacity 
             style={styles.iconButton}
-            onPress={() => router.push('/(tabs)/profile')}
+            onPress={() => {
+              HapticFeedback.light();
+              router.push('/(tabs)/profile');
+            }}
           >
             <Ionicons name="settings-outline" size={24} color={Colors.text} />
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.notificationBadge}
-            onPress={() => setNotificationsVisible(true)}
+            onPress={() => {
+              HapticFeedback.light();
+              setNotificationsVisible(true);
+            }}
           >
             <Ionicons name="notifications-outline" size={24} color={Colors.text} />
             {stats.unreadNotifications > 0 && (
@@ -309,33 +416,6 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Search Bar */}
-        <View style={styles.searchBarContainer}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={20} color={Colors.textMuted} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search centers..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={Colors.textMuted}
-              returnKeyType="search"
-              onSubmitEditing={() => {
-                if (searchQuery.trim()) {
-                  router.push(`/(tabs)/centers?q=${encodeURIComponent(searchQuery)}`);
-                } else {
-                  router.push('/(tabs)/centers');
-                }
-              }}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={20} color={Colors.textMuted} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
         {/* Quick Access Icons */}
         <View style={styles.quickAccessContainer}>
           <TouchableOpacity
@@ -372,8 +452,42 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Active Check-Out Card */}
+        {activeCheckIn && (
+          <AnimatedCard variant="elevated" padding="large" style={[styles.quickActionCard, { borderLeftWidth: 4, borderLeftColor: Colors.warning }]} delay={0}>
+            <View style={styles.quickActionContent}>
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.warning + '15' }]}>
+                <Ionicons name="log-out" size={32} color={Colors.warning} />
+              </View>
+              <View style={styles.quickActionText}>
+                <Text style={styles.quickActionTitle}>Active Check-In</Text>
+                <Text style={styles.quickActionSubtitle}>
+                  {activeCheckIn.children?.first_name} {activeCheckIn.children?.last_name} at {activeCheckIn.centers?.name}
+                </Text>
+                <Text style={styles.checkInTime}>
+                  Checked in: {new Date(activeCheckIn.check_in_time).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </Text>
+              </View>
+            </View>
+            <Button
+              title="Check Out"
+              onPress={() => router.push({
+                pathname: '/check-out',
+                params: { checkInId: activeCheckIn.id }
+              })}
+              icon="log-out"
+              size="medium"
+              fullWidth
+              variant="primary"
+            />
+          </AnimatedCard>
+        )}
+
         {/* Quick Check-In Card */}
-        <Card variant="elevated" padding="large" style={styles.quickActionCard}>
+        <AnimatedCard variant="elevated" padding="large" style={styles.quickActionCard} delay={activeCheckIn ? 100 : 0}>
           <View style={styles.quickActionContent}>
             <View style={styles.quickActionIcon}>
               <Ionicons name="qr-code" size={32} color={Colors.primary} />
@@ -390,7 +504,7 @@ export default function HomeScreen() {
             size="medium"
             fullWidth
           />
-        </Card>
+        </AnimatedCard>
 
         {/* Browse Centers Section */}
           <View style={styles.section}>
@@ -485,31 +599,64 @@ export default function HomeScreen() {
             </View>
 
             {recentCheckIns.length > 0 ? (
-              recentCheckIns.map((checkIn) => (
-                <Card
-                  key={checkIn.id}
-                  variant="outlined"
-                  padding="medium"
-                  style={styles.activityCard}
-                >
-                  <View style={styles.activityContent}>
-                    <View style={[styles.activityIcon, { backgroundColor: Colors.success + '15' }]}>
-                      <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+              recentCheckIns.map((checkIn) => {
+                const isActive = !checkIn.check_out_time;
+                return (
+                  <Card
+                    key={checkIn.id}
+                    variant="outlined"
+                    padding="medium"
+                    style={styles.activityCard}
+                  >
+                    <View style={styles.activityContent}>
+                      <View style={[
+                        styles.activityIcon, 
+                        { backgroundColor: isActive ? Colors.warning + '15' : Colors.success + '15' }
+                      ]}>
+                        <Ionicons 
+                          name={isActive ? "time" : "checkmark-circle"} 
+                          size={20} 
+                          color={isActive ? Colors.warning : Colors.success} 
+                        />
+                      </View>
+                      <View style={styles.activityInfo}>
+                        <View style={styles.activityHeader}>
+                          <Text style={styles.activityTitle}>{checkIn.centers?.name}</Text>
+                          <View style={[
+                            styles.statusBadge,
+                            { backgroundColor: isActive ? Colors.warning + '20' : Colors.success + '20' }
+                          ]}>
+                            <Text style={[
+                              styles.statusText,
+                              { color: isActive ? Colors.warning : Colors.success }
+                            ]}>
+                              {isActive ? 'Active' : 'Completed'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.activitySubtitle}>
+                          {checkIn.children?.name} • {new Date(checkIn.check_in_time).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })}
+                        </Text>
+                        {checkIn.check_out_time && (
+                          <Text style={styles.activitySubtitle}>
+                            Checked out: {new Date(checkIn.check_out_time).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit'
+                            })}
+                          </Text>
+                        )}
+                      </View>
                     </View>
-                    <View style={styles.activityInfo}>
-                      <Text style={styles.activityTitle}>{checkIn.centers?.name}</Text>
-                      <Text style={styles.activitySubtitle}>
-                        {checkIn.children?.name} • {new Date(checkIn.check_in_time).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
-                      </Text>
-                    </View>
-                  </View>
-                </Card>
-              ))
+                  </Card>
+                );
+              })
             ) : (
               <Card variant="outlined" padding="medium" style={styles.emptyCard}>
                 <Text style={styles.emptyText}>No recent activity</Text>
@@ -561,6 +708,19 @@ export default function HomeScreen() {
           setStats(prev => ({ ...prev, unreadNotifications: count }));
         }}
       />
+
+      {/* Organization Selection Modal */}
+      {userId && (
+        <OrganizationSelectionModal
+          visible={organizationModalVisible}
+          onClose={() => setOrganizationModalVisible(false)}
+          userId={userId}
+          onOrganizationSelected={() => {
+            setOrganizationModalVisible(false);
+            loadUserData(); // Reload data after organization is selected
+          }}
+        />
+      )}
     </Screen>
   );
 }
@@ -571,7 +731,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingTop: 20,
+    paddingBottom: Spacing.sm,
     backgroundColor: Colors.background,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.divider,
@@ -580,31 +741,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
     paddingBottom: Spacing.xxxl,
-  },
-  searchBarContainer: {
-    marginBottom: Spacing.lg,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundDark,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    height: 48,
-  },
-  searchIcon: {
-    marginRight: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: Typography.fontSize.base,
-    color: Colors.text,
-    padding: 0,
-  },
-  clearButton: {
-    padding: Spacing.xs,
   },
   quickAccessContainer: {
     flexDirection: 'row',
@@ -631,8 +769,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   greeting: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.textLight,
+    fontSize: 32,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
     marginBottom: Spacing.xs,
   },
   userName: {
@@ -668,6 +807,11 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontSize: 10,
     fontWeight: Typography.fontWeight.bold,
+  },
+  checkInTime: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textLight,
+    marginTop: Spacing.xs,
   },
   quickActionCard: {
     marginBottom: Spacing.lg,
@@ -822,15 +966,32 @@ const styles = StyleSheet.create({
   activityInfo: {
     flex: 1,
   },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   activityTitle: {
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.text,
-    marginBottom: 2,
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    marginLeft: Spacing.sm,
+  },
+  statusText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
   },
   activitySubtitle: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textLight,
+    marginTop: 2,
   },
   // Frequent centers
   centerCard: {

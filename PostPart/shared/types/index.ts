@@ -1,6 +1,26 @@
 // Shared TypeScript types for PostPart platform
 // Used across mobile app and admin dashboard
 
+// User Role types
+export type UserRole = 'admin' | 'parent' | 'support';
+
+export interface UserRoleRecord {
+  id: string;
+  user_id: string;
+  role: UserRole;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserWithRole {
+  id: string;
+  email: string;
+  created_at: string;
+  last_sign_in_at?: string;
+  role?: UserRole;
+  role_created_at?: string;
+}
+
 export interface Profile {
   id: string;
   email: string;
@@ -39,7 +59,8 @@ export interface Center {
   age_range?: string;
   is_verified: boolean;
   verification_date?: string;
-  image_url?: string;
+  image_url?: string; // Legacy field, kept for backward compatibility
+  images?: string[]; // Array of image URLs for slideshow (max 3)
   map_link?: string; // Google Maps or other map link
   latitude?: number;
   longitude?: number;
@@ -65,6 +86,7 @@ export interface CheckIn {
   child_id: string;
   qr_code_id: string;
   check_in_time: string;
+  check_out_time?: string | null;
   notes?: string;
   created_at: string;
 }

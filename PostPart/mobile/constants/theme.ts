@@ -12,10 +12,10 @@ export const Colors = {
   accentLight: '#BA68C8',
   accentDark: '#7B1FA2',
   
-  // Backgrounds - Clean, white-based
-  background: '#FFFFFF',
-  backgroundLight: '#FFFFFF',
-  backgroundDark: '#F8F9FA',
+  // Backgrounds - Warm, child-friendly
+  background: '#FFF9F5',        // Soft warm white
+  backgroundLight: '#FFFBF7',   // Lighter warm
+  backgroundDark: '#FFF3E9',    // Warm peachy
   surface: '#FFFFFF',
   
   // Text - Better contrast with white backgrounds

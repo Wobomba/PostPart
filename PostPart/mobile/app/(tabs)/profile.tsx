@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/Card';
@@ -25,6 +26,7 @@ interface Child {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [children, setChildren] = useState<Child[]>([]);
@@ -151,10 +153,13 @@ export default function ProfileScreen() {
   };
 
   return (
-    <Screen>
+    <Screen edges={['top', 'bottom']}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Spacing.xxxl + insets.bottom },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
@@ -202,7 +207,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => router.push('/profile/add-child')}
+              onPress={() => router.push('/children/add')}
             >
               <Ionicons name="add-circle-outline" size={18} color={Colors.text} style={styles.buttonIcon} />
               <Text style={styles.actionButtonText}>Add Child</Text>
@@ -261,12 +266,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing.xxxl,
+    // paddingBottom is now handled dynamically with safe area insets
   },
   profileHeader: {
     alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-    paddingHorizontal: Spacing.lg,
+    paddingTop: 20,
+    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
   avatar: {
     width: 100,

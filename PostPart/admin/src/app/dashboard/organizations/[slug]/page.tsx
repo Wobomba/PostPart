@@ -64,6 +64,7 @@ interface Parent {
 interface CheckIn {
   id: string;
   check_in_time: string;
+  check_out_time?: string | null;
   child_id: string;
   center_id: string;
   center?: { name: string };
@@ -163,6 +164,7 @@ export default function OrganizationDetailPage() {
         .select(`
           id,
           check_in_time,
+          check_out_time,
           child_id,
           center_id,
           centers(name),
@@ -625,8 +627,21 @@ export default function OrganizationDetailPage() {
                           {checkIn.center?.name || 'Unknown Center'}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {new Date(checkIn.check_in_time).toLocaleString()}
+                          Check-in: {new Date(checkIn.check_in_time).toLocaleString()}
                         </Typography>
+                        {checkIn.check_out_time && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            Check-out: {new Date(checkIn.check_out_time).toLocaleString()}
+                          </Typography>
+                        )}
+                        {!checkIn.check_out_time && (
+                          <Chip 
+                            label="Active" 
+                            size="small" 
+                            color="warning"
+                            sx={{ mt: 0.5, fontSize: '0.7rem', height: 20 }}
+                          />
+                        )}
                       </Box>
                     ))}
                   </Box>

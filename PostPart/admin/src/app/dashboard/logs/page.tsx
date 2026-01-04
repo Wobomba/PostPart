@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../../components/DashboardLayout';
 import { supabase } from '../../../../lib/supabase';
 import { generateActivityLogsPDF } from '../../../utils/pdfExport';
+import { generateActivityLogsCSV } from '../../../utils/csvExport';
+import ExportDialog from '../../../components/ExportDialog';
 import {
   Box,
   Card,
@@ -72,6 +74,7 @@ export default function LogsPage() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   // Activity type categories for filtering
   const activityTypes = [
@@ -97,6 +100,8 @@ export default function LogsPage() {
     { value: 'center_deleted', label: 'Center Deleted' },
     { value: 'allocation_created', label: 'Allocation Created' },
     { value: 'allocation_updated', label: 'Allocation Updated' },
+    { value: 'checkout_completed', label: 'Check-Out Completed' },
+    { value: 'pickup_reminder_sent', label: 'Pickup Reminder Sent' },
     { value: 'report_exported', label: 'Report Exported' },
     { value: 'system_error', label: 'System Error' },
     { value: 'system_warning', label: 'System Warning' },
@@ -225,13 +230,39 @@ export default function LogsPage() {
     loadLogs();
   };
 
-  const handleExport = () => {
-    generateActivityLogsPDF(filteredLogs, {
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+  const handleExportClick = () => {
+    setExportDialogOpen(true);
+  };
+
+  const handleExport = (format: 'pdf' | 'csv', dateRange?: { startDate?: Date; endDate?: Date }) => {
+    // Use date range from dialog if provided, otherwise use existing filters
+    const filters = {
+      startDate: dateRange?.startDate || (startDate ? new Date(startDate) : undefined),
+      endDate: dateRange?.endDate || (endDate ? new Date(endDate) : undefined),
       activityType: activityTypeFilter !== 'all' ? activityTypeFilter : undefined,
       entityType: entityTypeFilter !== 'all' ? entityTypeFilter : undefined,
-    });
+    };
+
+    // Filter logs by date range if provided
+    let logsToExport = filteredLogs;
+    if (dateRange?.startDate || dateRange?.endDate) {
+      logsToExport = filteredLogs.filter((log) => {
+        const logDate = new Date(log.created_at);
+        if (dateRange.startDate && logDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (logDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+
+    if (format === 'pdf') {
+      generateActivityLogsPDF(logsToExport, filters);
+    } else {
+      generateActivityLogsCSV(logsToExport, filters);
+    }
   };
 
   const getActivityIcon = (type: string) => {
@@ -325,7 +356,7 @@ export default function LogsPage() {
             </Tooltip>
             <Tooltip title="Export Logs">
               <IconButton
-                onClick={handleExport}
+                onClick={handleExportClick}
                 sx={{
                   color: '#E91E63',
                   border: '1px solid #E91E63',
@@ -769,6 +800,15 @@ export default function LogsPage() {
           />
         </Card>
       </Box>
+      <ExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={handleExport}
+        title="Export Activity Logs"
+        showDateFilter={true}
+        defaultStartDate={startDate}
+        defaultEndDate={endDate}
+      />
     </DashboardLayout>
   );
 }

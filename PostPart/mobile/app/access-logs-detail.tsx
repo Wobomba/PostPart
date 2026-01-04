@@ -1,15 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components/Button';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '../components/Card';
+import { Screen } from '../components/Screen';
 import { supabase } from '../lib/supabase';
 import { Colors, Typography, Spacing, Layout } from '../constants/theme';
 import type { CheckInWithDetails } from '../../../shared/types';
 
+export const options = {
+  headerShown: false,
+  headerBackVisible: false,
+  presentation: 'card' as const,
+};
+
 export default function AccessLogsDetailScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { centerId, centerName } = useLocalSearchParams<{
     centerId: string;
     centerName: string;
@@ -53,25 +60,22 @@ export default function AccessLogsDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <Screen edges={['top', 'bottom']}>
+      {/* Fixed Header */}
       <View style={styles.headerContainer}>
-        <Button
-          title="← Back"
-          onPress={() => router.back()}
-          variant="ghost"
-        />
+        <View style={styles.header}>
+          <Text style={styles.title}>Visit History</Text>
+          <Text style={styles.subtitle}>{centerName}</Text>
+          <Text style={styles.count}>
+            {checkins.length} visit{checkins.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.header}>
-        <Text style={styles.title}>Visit History</Text>
-        <Text style={styles.subtitle}>{centerName}</Text>
-        <Text style={styles.count}>
-          {checkins.length} visit{checkins.length !== 1 ? 's' : ''}
-        </Text>
-      </View>
-
+      {/* Check-ins List */}
       <FlatList
         data={checkins}
+        style={styles.list}
         renderItem={({ item }) => (
           <Card variant="flat">
             <View style={styles.checkinContent}>
@@ -100,10 +104,13 @@ export default function AccessLogsDetailScreen() {
           </Card>
         )}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: Spacing.xxxl + insets.bottom },
+        ]}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -113,23 +120,22 @@ export default function AccessLogsDetailScreen() {
             </Text>
           </View>
         }
+        showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   headerContainer: {
-    paddingHorizontal: Layout.screenPadding,
-    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.background,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.divider,
   },
   header: {
-    padding: Layout.screenPadding,
-    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 20,
+    paddingBottom: Spacing.sm,
   },
   title: {
     fontSize: Typography.fontSize.xxxl,
@@ -148,7 +154,10 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.medium,
   },
   list: {
-    padding: Layout.screenPadding,
+    flex: 1,
+  },
+  listContent: {
+    padding: Spacing.md,
   },
   separator: {
     height: Spacing.sm,

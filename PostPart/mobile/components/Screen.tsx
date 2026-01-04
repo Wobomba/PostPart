@@ -1,39 +1,40 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Spacing } from '../constants/theme';
+import { Colors } from '../constants/theme';
 
 interface ScreenProps {
   children: React.ReactNode;
   style?: ViewStyle;
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
-  topSpacing?: number; // Additional top spacing beyond safe area (default: 14dp)
 }
 
 /**
  * Reusable Screen wrapper component that provides:
- * - Safe area handling (status bar/notch)
- * - Consistent Instagram-style top spacing (14dp extra padding)
- * - Bottom safe area handling (if specified in edges)
+ * - Safe area handling without extra padding
+ * - Manual top inset to avoid double padding issue
  */
 export const Screen: React.FC<ScreenProps> = ({
   children,
   style,
-  edges = ['top'],
-  topSpacing = 14, // Instagram-style spacing: 12-16dp, using 14dp as default
+  edges = ['bottom'],
 }) => {
   const insets = useSafeAreaInsets();
+  
+  // Only apply SafeAreaView edges for bottom (to avoid double top padding)
+  // Manually add top inset via paddingTop
+  const includesTop = edges?.includes('top');
+  const safeEdges = edges?.filter(edge => edge !== 'top') || [];
 
   return (
-    <SafeAreaView style={[styles.container, style]} edges={edges}>
-      <View
-        style={[
+    <SafeAreaView 
+      style={[styles.container, style]} 
+      edges={safeEdges as any}
+    >
+      <View style={[
           styles.content,
-          {
-            paddingTop: insets.top + topSpacing,
-          },
-        ]}
-      >
+        includesTop ? { paddingTop: insets.top } : undefined
+      ]}>
         {children}
       </View>
     </SafeAreaView>

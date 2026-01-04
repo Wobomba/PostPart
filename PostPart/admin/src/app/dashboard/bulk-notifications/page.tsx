@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../../../components/DashboardLayout';
 import { supabase } from '../../../../lib/supabase';
 import { logActivity } from '../../../utils/activityLogger';
@@ -62,8 +62,10 @@ export default function BulkNotificationsPage() {
     message: '',
     type: 'announcement' as 'announcement' | 'reminder' | 'approval' | 'center_update' | 'alert',
     priority: 'normal' as 'low' | 'normal' | 'high',
-    target_type: 'all' as 'all' | 'organization' | 'center' | 'individual',
+    target_type: 'all' as 'all' | 'organization' | 'checked_in' | 'individual',
     target_id: '',
+    check_in_start_date: '',
+    check_in_end_date: '',
   });
   const [sending, setSending] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -102,9 +104,85 @@ export default function BulkNotificationsPage() {
     };
   }, []);
 
+  const calculateRecipientCount = useCallback(async () => {
+    try {
+      if (formData.target_type === 'checked_in') {
+        // Get all check-ins within the date range
+        // This handles parents with multiple children checked in (same or different centers)
+        let checkInsQuery = supabase
+          .from('checkins')
+          .select('parent_id');
+
+        // Apply date range filter (only if dates are provided)
+        if (formData.check_in_start_date && formData.check_in_start_date.trim() !== '') {
+          const startDate = new Date(formData.check_in_start_date);
+          startDate.setHours(0, 0, 0, 0);
+          checkInsQuery = checkInsQuery.gte('check_in_time', startDate.toISOString());
+        }
+
+        if (formData.check_in_end_date && formData.check_in_end_date.trim() !== '') {
+          const endDate = new Date(formData.check_in_end_date);
+          endDate.setHours(23, 59, 59, 999);
+          checkInsQuery = checkInsQuery.lte('check_in_time', endDate.toISOString());
+        }
+
+        const { data: checkIns, error: checkInsError } = await checkInsQuery;
+        
+        if (checkInsError) throw checkInsError;
+
+        // Get unique parent IDs (handles multiple children per parent)
+        // A parent with multiple children checked in will only be counted once
+        const parentIds = [...new Set((checkIns || []).map((c: any) => c.parent_id).filter((id: string) => id && id.trim() !== ''))];
+        
+        if (parentIds.length === 0) {
+          setRecipientCount(0);
+          return;
+        }
+
+        // Count active parents from the check-in list
+        // Split into chunks if needed (Supabase has a limit on .in() array size)
+        const chunkSize = 1000;
+        const parentChunks: string[][] = [];
+        for (let i = 0; i < parentIds.length; i += chunkSize) {
+          parentChunks.push(parentIds.slice(i, i + chunkSize));
+        }
+
+        let totalCount = 0;
+        for (const chunk of parentChunks) {
+          const { count, error: countError } = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'active')
+            .in('id', chunk);
+
+          if (countError) throw countError;
+          totalCount += count || 0;
+        }
+
+        setRecipientCount(totalCount);
+      } else {
+        // Original logic for other target types
+        let query = supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'active');
+
+        if (formData.target_type === 'organization' && formData.target_id) {
+          query = query.eq('organization_id', formData.target_id);
+        }
+
+        const { count } = await query;
+        setRecipientCount(count || 0);
+      }
+    } catch (err) {
+      console.error('Error calculating recipients:', err);
+      setRecipientCount(0);
+    }
+  }, [formData.target_type, formData.target_id, formData.check_in_start_date, formData.check_in_end_date]);
+
   useEffect(() => {
     calculateRecipientCount();
-  }, [formData.target_type, formData.target_id]);
+  }, [calculateRecipientCount]);
 
   const loadData = async () => {
     await Promise.all([
@@ -165,25 +243,6 @@ export default function BulkNotificationsPage() {
     setCenters(data || []);
   };
 
-  const calculateRecipientCount = async () => {
-    try {
-      let query = supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
-
-      if (formData.target_type === 'organization' && formData.target_id) {
-        query = query.eq('organization_id', formData.target_id);
-      }
-
-      const { count } = await query;
-      setRecipientCount(count || 0);
-    } catch (err) {
-      console.error('Error calculating recipients:', err);
-      setRecipientCount(0);
-    }
-  };
-
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -192,9 +251,18 @@ export default function BulkNotificationsPage() {
       return;
     }
 
-    if (formData.target_type !== 'all' && !formData.target_id) {
-      setError('Please select a target');
+    if (formData.target_type === 'organization' && !formData.target_id) {
+      setError('Please select an organisation');
       return;
+    }
+    
+    if (formData.target_type === 'checked_in' && formData.check_in_start_date && formData.check_in_end_date) {
+      const startDate = new Date(formData.check_in_start_date);
+      const endDate = new Date(formData.check_in_end_date);
+      if (startDate > endDate) {
+        setError('Start date must be before end date');
+        return;
+      }
     }
 
     setSending(true);
@@ -223,20 +291,103 @@ export default function BulkNotificationsPage() {
       if (notifError) throw notifError;
 
       // Get target parents
-      let parentsQuery = supabase
-        .from('profiles')
-        .select('id')
-        .eq('status', 'active');
+      let parents: any[] = [];
+      let parentsError: any = null;
+      
+      if (formData.target_type === 'checked_in') {
+        // Get all check-ins within the date range
+        // This handles parents with multiple children checked in (same or different centers)
+        let checkInsQuery = supabase
+          .from('checkins')
+          .select('parent_id');
 
-      if (formData.target_type === 'organization' && formData.target_id) {
-        parentsQuery = parentsQuery.eq('organization_id', formData.target_id);
-      } else if (formData.target_type === 'individual' && formData.target_id) {
-        parentsQuery = parentsQuery.eq('id', formData.target_id);
+        // Apply date range filter (only if dates are provided)
+        if (formData.check_in_start_date && formData.check_in_start_date.trim() !== '') {
+          const startDate = new Date(formData.check_in_start_date);
+          startDate.setHours(0, 0, 0, 0);
+          checkInsQuery = checkInsQuery.gte('check_in_time', startDate.toISOString());
+        }
+
+        if (formData.check_in_end_date && formData.check_in_end_date.trim() !== '') {
+          const endDate = new Date(formData.check_in_end_date);
+          endDate.setHours(23, 59, 59, 999);
+          checkInsQuery = checkInsQuery.lte('check_in_time', endDate.toISOString());
+        }
+
+        const { data: checkIns, error: checkInsError } = await checkInsQuery;
+        
+        if (checkInsError) {
+          console.error('Error fetching check-ins:', checkInsError);
+          throw new Error(`Failed to fetch check-ins: ${checkInsError.message}`);
+        }
+
+        // Get unique parent IDs (handles multiple children per parent)
+        // A parent with multiple children checked in will only appear once in this set
+        const parentIds = [...new Set((checkIns || []).map((c: any) => c.parent_id).filter((id: string) => id && id.trim() !== ''))];
+        
+        console.log(`Found ${parentIds.length} unique parents from ${checkIns?.length || 0} check-ins`);
+        
+        if (parentIds.length === 0) {
+          setError('No parents found with check-ins in the specified date range');
+          setSending(false);
+          return;
+        }
+
+        // Get active parents from the check-in list
+        // Split into chunks if needed (Supabase has a limit on .in() array size)
+        const chunkSize = 1000;
+        const parentChunks: string[][] = [];
+        for (let i = 0; i < parentIds.length; i += chunkSize) {
+          parentChunks.push(parentIds.slice(i, i + chunkSize));
+        }
+
+        const allParents: any[] = [];
+        for (const chunk of parentChunks) {
+          const { data: activeParents, error: chunkError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('status', 'active')
+            .in('id', chunk);
+
+          if (chunkError) {
+            console.error('Error fetching parents chunk:', chunkError);
+            parentsError = chunkError;
+            break;
+          }
+          if (activeParents) {
+            allParents.push(...activeParents);
+          }
+        }
+
+        if (parentsError) {
+          throw new Error(`Failed to fetch active parents: ${parentsError.message}`);
+        }
+        
+        if (allParents.length === 0) {
+          setError('No active parents found from the check-ins');
+          setSending(false);
+          return;
+        }
+        
+        parents = allParents;
+        console.log(`Found ${parents.length} active parents to notify`);
+      } else {
+        // Original logic for other target types
+        let parentsQuery = supabase
+          .from('profiles')
+          .select('id')
+          .eq('status', 'active');
+
+        if (formData.target_type === 'organization' && formData.target_id) {
+          parentsQuery = parentsQuery.eq('organization_id', formData.target_id);
+        } else if (formData.target_type === 'individual' && formData.target_id) {
+          parentsQuery = parentsQuery.eq('id', formData.target_id);
+        }
+
+        const { data: parentsData, error: queryError } = await parentsQuery;
+        if (queryError) throw queryError;
+        parents = parentsData || [];
       }
-
-      const { data: parents, error: parentsError } = await parentsQuery;
-
-      if (parentsError) throw parentsError;
 
       // Create parent_notifications entries
       if (parents && parents.length > 0) {
@@ -246,31 +397,79 @@ export default function BulkNotificationsPage() {
           is_read: false,
         }));
 
-        const { error: insertError } = await supabase
-          .from('parent_notifications')
-          .upsert(parentNotifications, { 
-            onConflict: 'notification_id,parent_id',
-            ignoreDuplicates: false 
-          });
+        console.log(`Inserting ${parentNotifications.length} parent notification entries`);
 
-        if (insertError) {
-          console.error('Error inserting parent_notifications:', insertError);
-          throw insertError;
+        // Insert in chunks to avoid potential size limits
+        const chunkSize = 500;
+        const notificationChunks: any[][] = [];
+        for (let i = 0; i < parentNotifications.length; i += chunkSize) {
+          notificationChunks.push(parentNotifications.slice(i, i + chunkSize));
         }
+
+        for (const chunk of notificationChunks) {
+          const { data: insertedData, error: insertError } = await supabase
+            .from('parent_notifications')
+            .insert(chunk)
+            .select();
+
+          if (insertError) {
+            console.error('Error inserting parent_notifications chunk:', insertError);
+            console.error('Error type:', typeof insertError);
+            console.error('Error structure:', {
+              message: insertError.message,
+              details: insertError.details,
+              hint: insertError.hint,
+              code: insertError.code,
+              fullError: insertError
+            });
+            console.error('Chunk data (first 3):', chunk.slice(0, 3));
+            console.error('Total chunk size:', chunk.length);
+            
+            // Build comprehensive error message
+            const errorParts: string[] = [];
+            if (insertError.message) errorParts.push(insertError.message);
+            if (insertError.details) errorParts.push(`Details: ${insertError.details}`);
+            if (insertError.hint) errorParts.push(`Hint: ${insertError.hint}`);
+            if (insertError.code) errorParts.push(`Code: ${insertError.code}`);
+            
+            const fullErrorMessage = errorParts.length > 0 
+              ? errorParts.join(' | ')
+              : `Database error: ${JSON.stringify(insertError)}`;
+            
+            throw new Error(`Failed to send notifications: ${fullErrorMessage}`);
+          }
+          
+          console.log(`Successfully inserted chunk of ${chunk.length} notifications`);
+        }
+
+        console.log('Successfully inserted all parent notifications');
+      } else {
+        console.warn('No parents to notify');
+        setError('No parents found to send notifications to');
+        setSending(false);
+        return;
       }
 
       // Log activity
+      const activityDescription = formData.target_type === 'checked_in'
+        ? `Bulk notification sent: "${formData.title}" to ${parents?.length || 0} parents who checked in${formData.check_in_start_date || formData.check_in_end_date ? ` (${formData.check_in_start_date ? new Date(formData.check_in_start_date).toLocaleDateString() : 'all'} - ${formData.check_in_end_date ? new Date(formData.check_in_end_date).toLocaleDateString() : 'all'})` : ''}`
+        : `Bulk notification sent: "${formData.title}" to ${parents?.length || 0} parents`;
+
       await logActivity({
         activityType: 'parent_details_updated',
         entityType: 'parent',
         entityId: notification.id,
         entityName: formData.title,
-        description: `Bulk notification sent: "${formData.title}" to ${parents?.length || 0} parents`,
+        description: activityDescription,
         metadata: {
           notification_type: formData.type,
           target_type: formData.target_type,
           recipient_count: parents?.length || 0,
           priority: formData.priority,
+          ...(formData.target_type === 'checked_in' && {
+            check_in_start_date: formData.check_in_start_date,
+            check_in_end_date: formData.check_in_end_date,
+          }),
         },
       });
 
@@ -282,12 +481,51 @@ export default function BulkNotificationsPage() {
         priority: 'normal',
         target_type: 'all',
         target_id: '',
+        check_in_start_date: '',
+        check_in_end_date: '',
       });
       
       await loadNotificationHistory();
     } catch (error: any) {
-      console.error('Error sending notification:', error);
-      setError('Error sending notification: ' + error.message);
+      console.error('Error sending notification - Full error object:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', error ? Object.keys(error) : 'no keys');
+      
+      // Better error message extraction
+      let errorMessage = 'Unknown error occurred';
+      if (error) {
+        if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error?.message) {
+          errorMessage = error.message;
+        } else if (error?.error) {
+          errorMessage = typeof error.error === 'string' ? error.error : error.error?.message || JSON.stringify(error.error);
+        } else if (error?.hint) {
+          errorMessage = error.hint;
+        } else if (error?.details) {
+          errorMessage = error.details;
+        } else if (error?.code) {
+          errorMessage = `Database error (${error.code}): ${error.message || 'See console for details'}`;
+        } else if (error.toString && error.toString() !== '[object Object]') {
+          errorMessage = error.toString();
+        } else {
+          // Try to stringify the error object
+          try {
+            const stringified = JSON.stringify(error, null, 2);
+            errorMessage = stringified !== '{}' ? stringified : 'An error occurred while sending the notification. Check the browser console for details.';
+          } catch (stringifyError) {
+            errorMessage = 'An error occurred while sending the notification. Check the browser console for details.';
+          }
+        }
+      }
+      
+      setError(`Error sending notification: ${errorMessage}`);
+      
+      // If notification was created but parent_notifications failed, log it
+      if (errorMessage?.includes('parent_notifications') || errorMessage?.includes('parent_notification') || errorMessage?.includes('unique constraint')) {
+        console.error('Notification was created but failed to link to parents. Notification ID may be orphaned.');
+        console.error('This might be due to a database trigger conflict. Check if the trigger handles "checked_in" target_type.');
+      }
     } finally {
       setSending(false);
     }
@@ -507,6 +745,7 @@ export default function BulkNotificationsPage() {
                       >
                         <MenuItem value="all">All Active Parents</MenuItem>
                         <MenuItem value="organization">Specific Organisation</MenuItem>
+                        <MenuItem value="checked_in">Parents Who Checked In</MenuItem>
                       </Select>
                     </FormControl>
                   </Box>
@@ -543,6 +782,65 @@ export default function BulkNotificationsPage() {
                     </Box>
                   )}
 
+                  {/* Checked-In Parents Selection */}
+                  {formData.target_type === 'checked_in' && (
+                    <>
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#1e293b' }}>
+                          Check-In Date Range (Optional)
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+                          <TextField
+                            label="Start Date"
+                            type="date"
+                            value={formData.check_in_start_date}
+                            onChange={(e) => setFormData({ ...formData, check_in_start_date: e.target.value })}
+                            InputLabelProps={{
+                              shrink: true,
+                            }}
+                            fullWidth
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                '&:hover fieldset': {
+                                  borderColor: '#E91E63',
+                                },
+                                '&.Mui-focused fieldset': {
+                                  borderColor: '#E91E63',
+                                },
+                              },
+                            }}
+                          />
+                          <TextField
+                            label="End Date"
+                            type="date"
+                            value={formData.check_in_end_date}
+                            onChange={(e) => setFormData({ ...formData, check_in_end_date: e.target.value })}
+                            InputLabelProps={{
+                              shrink: true,
+                            }}
+                            fullWidth
+                            inputProps={{
+                              min: formData.check_in_start_date || undefined,
+                            }}
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                '&:hover fieldset': {
+                                  borderColor: '#E91E63',
+                                },
+                                '&.Mui-focused fieldset': {
+                                  borderColor: '#E91E63',
+                                },
+                              },
+                            }}
+                          />
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          Leave empty to include all check-ins. Select dates to filter by check-in date range.
+                        </Typography>
+                      </Box>
+                    </>
+                  )}
+
                   {/* Recipient Count */}
                   <Alert 
                     severity="info" 
@@ -555,13 +853,22 @@ export default function BulkNotificationsPage() {
                       },
                     }}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Estimated Recipients:
-                      </Typography>
-                      <Typography variant="body2">
-                        {recipientCount} active parent{recipientCount !== 1 ? 's' : ''}
-                      </Typography>
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: formData.target_type === 'checked_in' ? 1 : 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          Estimated Recipients:
+                        </Typography>
+                        <Typography variant="body2">
+                          {recipientCount} {formData.target_type === 'checked_in' ? 'parent' : 'active parent'}{recipientCount !== 1 ? 's' : ''}
+                        </Typography>
+                      </Box>
+                      {formData.target_type === 'checked_in' && (
+                        <Typography variant="caption" color="text.secondary">
+                          {formData.check_in_start_date || formData.check_in_end_date
+                            ? `Parents who checked in${formData.check_in_start_date && formData.check_in_end_date ? ` between ${new Date(formData.check_in_start_date).toLocaleDateString()} and ${new Date(formData.check_in_end_date).toLocaleDateString()}` : formData.check_in_start_date ? ` from ${new Date(formData.check_in_start_date).toLocaleDateString()}` : ` until ${new Date(formData.check_in_end_date).toLocaleDateString()}`}`
+                            : 'All parents who have checked in'}
+                        </Typography>
+                      )}
                     </Box>
                   </Alert>
 
@@ -676,7 +983,13 @@ export default function BulkNotificationsPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            {notif.target_type === 'all' ? 'All Parents' : notif.target_type}
+                            {notif.target_type === 'all' 
+                              ? 'All Parents' 
+                              : notif.target_type === 'checked_in'
+                              ? 'Checked-In Parents'
+                              : notif.target_type === 'organization'
+                              ? 'Organisation'
+                              : notif.target_type}
                           </TableCell>
                           <TableCell>
                             <Chip label={notif.recipient_count || 0} color="primary" size="small" />

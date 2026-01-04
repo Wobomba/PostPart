@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    padding: Layout.screenPadding,
+    padding: Spacing.md,
   },
   header: {
     alignItems: 'center',

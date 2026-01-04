@@ -20,6 +20,8 @@ import {
   IconButton,
 } from '@mui/material';
 import { Add as AddIcon, Close as CloseIcon } from '@mui/icons-material';
+import ImageUpload from './ImageUpload';
+import { uploadImageToStorage } from '../utils/imageOptimization';
 import type { Center } from '../../../../shared/types';
 
 interface CenterFormProps {
@@ -85,6 +87,8 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
   });
   const [servicesOffered, setServicesOffered] = useState<string[]>(center?.services_offered || []);
   const [newService, setNewService] = useState('');
+  const [images, setImages] = useState<string[]>(center?.images || center?.image_url ? [center.image_url] : []);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -126,6 +130,7 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
         latitude: formData.latitude ? parseFloat(formData.latitude) : null,
         longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         map_link: formData.map_link || null, // Map link for Google Maps, etc.
+        images: images.length > 0 ? images.filter(img => !img.startsWith('data:')) : null, // Exclude data URLs for now
         is_verified: formData.is_verified,
         verification_date: formData.is_verified 
           ? (!center?.is_verified ? new Date().toISOString() : center?.verification_date)
@@ -206,6 +211,40 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
           .single();
 
         if (error) throw error;
+
+        // Upload images if there are data URLs (for new centers)
+        if (images.length > 0) {
+          setUploadingImages(true);
+          try {
+            const uploadedImages: string[] = [];
+            for (let i = 0; i < images.length; i++) {
+              const img = images[i];
+              if (img.startsWith('data:')) {
+                // Convert data URL to File and upload
+                const response = await fetch(img);
+                const blob = await response.blob();
+                const file = new File([blob], `image-${i}.jpg`, { type: 'image/jpeg' });
+                const imageUrl = await uploadImageToStorage(file, data.id, i);
+                uploadedImages.push(imageUrl);
+              } else {
+                uploadedImages.push(img);
+              }
+            }
+            
+            // Update center with uploaded image URLs
+            if (uploadedImages.length > 0) {
+              await supabase
+                .from('centers')
+                .update({ images: uploadedImages })
+                .eq('id', data.id);
+            }
+          } catch (err: any) {
+            console.error('Error uploading images:', err);
+            // Don't fail the whole operation if image upload fails
+          } finally {
+            setUploadingImages(false);
+          }
+        }
 
         // Log creation
         await logActivity({
@@ -304,6 +343,15 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
         <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b', mt: 2 }}>
           Basic Information
         </Typography>
+
+        {/* Center Images */}
+        <ImageUpload
+          images={images}
+          maxImages={3}
+          centerId={center?.id}
+          onChange={setImages}
+          disabled={loading || uploadingImages}
+        />
 
         <TextField
           label="Centre Name"
@@ -749,7 +797,7 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
           <Button
             type="submit"
             variant="contained"
-            disabled={loading}
+            disabled={loading || uploadingImages}
             fullWidth
             sx={{
               textTransform: 'none',
@@ -758,7 +806,7 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
               '&.Mui-disabled': { bgcolor: '#ccc' },
             }}
           >
-            {loading ? (
+            {loading || uploadingImages ? (
               <CircularProgress size={24} sx={{ color: 'white' }} />
             ) : center ? (
               'Update Centre'
