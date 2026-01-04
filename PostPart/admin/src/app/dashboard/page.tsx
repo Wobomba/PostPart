@@ -33,6 +33,7 @@ import {
   ArrowUpward as ArrowUpwardIcon,
   ArrowDownward as ArrowDownwardIcon,
   Info as InfoIcon,
+  ExitToApp as ExitToAppIcon,
 } from '@mui/icons-material';
 import Link from 'next/link';
 
@@ -270,6 +271,7 @@ export default function DashboardPage() {
         .select(`
           id,
           check_in_time,
+          check_out_time,
           parent_id,
           profiles!inner(
             organization_id,
@@ -292,9 +294,22 @@ export default function DashboardPage() {
               organizationId: org?.id,
               organizationName: org?.name,
               parentName: profile.full_name,
-              message: `Check-in completed`,
+              message: checkin.check_out_time ? `Check-in and check-out completed` : `Check-in completed`,
               timestamp: checkin.check_in_time,
             });
+            
+            // Add check-out event if exists
+            if (checkin.check_out_time) {
+              events.push({
+                id: `checkout-${checkin.id}`,
+                type: 'checkout',
+                organizationId: org?.id,
+                organizationName: org?.name,
+                parentName: profile.full_name,
+                message: `Check-out completed`,
+                timestamp: checkin.check_out_time,
+              });
+            }
           }
         });
       }
@@ -314,6 +329,11 @@ export default function DashboardPage() {
       case 'checkin':
       case 'checkin_completed':
         return <CheckCircleIcon sx={{ fontSize: 20, color: '#4CAF50' }} />;
+      case 'checkout':
+      case 'checkout_completed':
+        return <ExitToAppIcon sx={{ fontSize: 20, color: '#2196F3' }} />;
+      case 'pickup_reminder_sent':
+        return <NotificationsIcon sx={{ fontSize: 20, color: '#FF9800' }} />;
       case 'parent_added':
       case 'parent_created':
         return <PeopleIcon sx={{ fontSize: 20, color: '#2196F3' }} />;
@@ -869,18 +889,29 @@ export default function DashboardPage() {
                   }}>
                     Centre
                   </TableCell>
+                  <TableCell sx={{ 
+                    fontWeight: 600, 
+                    textTransform: 'uppercase', 
+                    fontSize: { xs: '0.6875rem', sm: '0.75rem' },
+                    py: { xs: 1.5, md: 2.5 }, 
+                    px: { xs: 1, sm: 1.5, md: 2, lg: 3 },
+                    whiteSpace: { xs: 'normal', sm: 'nowrap' },
+                    minWidth: { xs: 100, sm: 120 },
+                  }}>
+                    Check-Out
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
                       <CircularProgress size={24} />
                     </TableCell>
                   </TableRow>
                 ) : stats.recentCheckins.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={5} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                       No check-ins yet
                     </TableCell>
                   </TableRow>
@@ -922,6 +953,29 @@ export default function DashboardPage() {
                         wordBreak: { xs: 'break-word', sm: 'normal' },
                       }}>
                         {checkin.center?.name || 'Unknown'}
+                      </TableCell>
+                      <TableCell sx={{ 
+                        py: { xs: 1.5, md: 2.5 }, 
+                        px: { xs: 1, sm: 1.5, md: 2, lg: 3 },
+                        fontSize: { xs: '0.75rem', sm: '0.8125rem', md: '0.875rem' },
+                        whiteSpace: { xs: 'normal', sm: 'nowrap' },
+                        wordBreak: { xs: 'break-word', sm: 'normal' },
+                      }}>
+                        {checkin.check_out_time ? (
+                          <Chip 
+                            label={new Date(checkin.check_out_time).toLocaleString()} 
+                            size="small" 
+                            color="success"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                        ) : (
+                          <Chip 
+                            label="Active" 
+                            size="small" 
+                            color="warning"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

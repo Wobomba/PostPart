@@ -67,6 +67,7 @@ CREATE TABLE centers (
   is_verified BOOLEAN DEFAULT FALSE,
   verification_date TIMESTAMP WITH TIME ZONE,
   image_url TEXT,
+  images TEXT[], -- Array of image URLs for slideshow (max 3)
   latitude DECIMAL(10, 8),
   longitude DECIMAL(11, 8),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -93,6 +94,7 @@ CREATE TABLE checkins (
   child_id UUID NOT NULL REFERENCES children(id) ON DELETE CASCADE,
   qr_code_id UUID NOT NULL REFERENCES center_qr_codes(id) ON DELETE CASCADE,
   check_in_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  check_out_time TIMESTAMP WITH TIME ZONE,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

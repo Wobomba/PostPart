@@ -67,7 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }
           label: 'Manage Children',
           onPress: () => {
             onClose();
-            router.push('/profile/add-child');
+            router.push('/children/add');
           },
           showChevron: true,
         },

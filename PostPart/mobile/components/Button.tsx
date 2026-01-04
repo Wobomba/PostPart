@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -7,9 +7,11 @@ import {
   ViewStyle,
   TextStyle,
   View,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows, Layout } from '../constants/theme';
+import { HapticFeedback } from '../utils/effects';
 
 interface ButtonProps {
   title: string;
@@ -36,6 +38,37 @@ export const Button: React.FC<ButtonProps> = ({
   fullWidth = false,
   style,
 }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    // Add haptic feedback based on variant
+    if (variant === 'danger') {
+      HapticFeedback.warning();
+    } else if (variant === 'primary') {
+      HapticFeedback.medium();
+    } else {
+      HapticFeedback.light();
+    }
+
+    // Scale down animation
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    // Scale back up animation
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  };
+
   const buttonStyles: ViewStyle[] = [
     styles.base,
     styles[variant],
@@ -59,11 +92,14 @@ export const Button: React.FC<ButtonProps> = ({
   const iconSize = size === 'small' ? 16 : size === 'large' ? 24 : 20;
 
   return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
     <TouchableOpacity
       style={buttonStyles}
       onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
       disabled={disabled || loading}
-      activeOpacity={0.7}
+        activeOpacity={0.9}
     >
       {loading ? (
         <ActivityIndicator 
@@ -81,6 +117,7 @@ export const Button: React.FC<ButtonProps> = ({
         </View>
       )}
     </TouchableOpacity>
+    </Animated.View>
   );
 };
 
@@ -96,6 +133,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',
   },
   
   // Variants
@@ -139,6 +177,7 @@ const styles = StyleSheet.create({
   text: {
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.textInverse,
+    textAlign: 'center',
   },
   primaryText: {
     color: Colors.textInverse,

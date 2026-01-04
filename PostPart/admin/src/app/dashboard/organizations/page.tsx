@@ -62,6 +62,8 @@ import {
 } from '@mui/icons-material';
 import type { Organization } from '../../../../../../../shared/types';
 import { generateOrganisationPDF } from '../../../utils/pdfExport';
+import { generateOrganisationCSV } from '../../../utils/csvExport';
+import ExportDialog from '../../../components/ExportDialog';
 
 interface OrganizationStats {
   totalOrganizations: number;
@@ -116,6 +118,7 @@ export default function OrganizationsPage() {
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -531,6 +534,7 @@ export default function OrganizationsPage() {
           .select(`
             id,
             check_in_time,
+            check_out_time,
             child_id,
             center_id,
             centers(name),
@@ -545,7 +549,7 @@ export default function OrganizationsPage() {
           // If foreign key relationships don't exist, try without them
           const { data: simpleCheckIns } = await supabase
             .from('checkins')
-            .select('id, check_in_time, child_id, center_id')
+            .select('id, check_in_time, check_out_time, child_id, center_id')
             .in('parent_id', parentIdList)
             .order('check_in_time', { ascending: false })
             .limit(10);
@@ -616,10 +620,45 @@ export default function OrganizationsPage() {
     }
   };
 
-  const generateOrganizationReport = () => {
+  const handleExportClick = () => {
+    if (!viewingOrganization) return;
+    setExportDialogOpen(true);
+  };
+
+  const generateOrganizationReport = (format: 'pdf' | 'csv', dateRange?: { startDate?: Date; endDate?: Date }) => {
     if (!viewingOrganization) return;
 
-    generateOrganisationPDF({
+    // Filter parents by date range if provided
+    let filteredParents = viewParents;
+    if (dateRange?.startDate || dateRange?.endDate) {
+      filteredParents = viewParents.filter((p) => {
+        const createdDate = new Date(p.created_at);
+        if (dateRange.startDate && createdDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (createdDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+
+    // Filter check-ins by date range if provided
+    let filteredCheckIns = viewRecentCheckIns;
+    if (dateRange?.startDate || dateRange?.endDate) {
+      filteredCheckIns = viewRecentCheckIns.filter((c: any) => {
+        const checkInDate = new Date(c.check_in_time);
+        if (dateRange.startDate && checkInDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (checkInDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+
+    const reportData = {
       name: viewingOrganization.name,
       industry: viewingOrganization.industry,
       status: viewingOrganization.status,
@@ -634,9 +673,15 @@ export default function OrganizationsPage() {
       checkInCount: viewingOrganization.checkInCount,
       todayCheckIns: viewingOrganization.todayCheckIns,
       lastCheckInDate: viewingOrganization.lastCheckInDate,
-      parents: viewParents,
-      recentCheckIns: viewRecentCheckIns,
-    });
+      parents: filteredParents,
+      recentCheckIns: filteredCheckIns,
+    };
+
+    if (format === 'pdf') {
+      generateOrganisationPDF(reportData, dateRange);
+    } else {
+      generateOrganisationCSV(reportData, dateRange);
+    }
 
     // Log the export activity
     logActivity({
@@ -644,7 +689,7 @@ export default function OrganizationsPage() {
       entityType: 'organisation',
       entityId: viewingOrganization.id,
       entityName: viewingOrganization.name,
-      description: `Exported PDF report for organisation: ${viewingOrganization.name}`,
+      description: `Exported ${format.toUpperCase()} report for organisation: ${viewingOrganization.name}${dateRange ? ` (${dateRange.startDate?.toLocaleDateString()} - ${dateRange.endDate?.toLocaleDateString()})` : ''}`,
     });
   };
 
@@ -1337,8 +1382,21 @@ export default function OrganizationsPage() {
                                   {center?.name || 'Unknown Center'}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary">
-                                  {checkIn.check_in_time ? new Date(checkIn.check_in_time).toLocaleString() : 'Unknown date'}
+                                  Check-in: {checkIn.check_in_time ? new Date(checkIn.check_in_time).toLocaleString() : 'Unknown date'}
                                 </Typography>
+                                {checkIn.check_out_time && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                    Check-out: {new Date(checkIn.check_out_time).toLocaleString()}
+                                  </Typography>
+                                )}
+                                {!checkIn.check_out_time && (
+                                  <Chip 
+                                    label="Active" 
+                                    size="small" 
+                                    color="warning"
+                                    sx={{ mt: 0.5, fontSize: '0.7rem', height: 20 }}
+                                  />
+                                )}
                               </Box>
                             );
                           })}
@@ -1367,7 +1425,7 @@ export default function OrganizationsPage() {
               <Button
                 variant="outlined"
                 startIcon={<GetAppIcon />}
-                onClick={generateOrganizationReport}
+                onClick={handleExportClick}
                 sx={{
                   textTransform: 'none',
                   borderColor: '#E91E63',
@@ -1605,6 +1663,12 @@ export default function OrganizationsPage() {
           </Box>
         </Drawer>
       </Box>
+      <ExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={generateOrganizationReport}
+        title="Export Organisation Report"
+      />
     </DashboardLayout>
   );
 }

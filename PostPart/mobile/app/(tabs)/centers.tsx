@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/Card';
@@ -22,6 +23,7 @@ const MAX_HISTORY_ITEMS = 10;
 
 export default function CentersScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [centers, setCenters] = useState<Center[]>([]);
   const [filteredCenters, setFilteredCenters] = useState<Center[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -243,7 +245,7 @@ export default function CentersScreen() {
   );
 
   return (
-    <Screen>
+    <Screen edges={['top', 'bottom']}>
       {/* Fixed Header */}
       <View style={styles.headerContainer}>
         {/* Header with Back Button and Title */}
@@ -260,7 +262,7 @@ export default function CentersScreen() {
           >
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Search</Text>
+          <Text style={styles.title}>Browse Centers</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -318,7 +320,11 @@ export default function CentersScreen() {
         data={filteredCenters}
         renderItem={renderCenterCard}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: Spacing.xxxl + insets.bottom },
+        ]}
+        style={styles.list}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
@@ -349,6 +355,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
+    paddingTop: 20,
     paddingBottom: Spacing.sm,
   },
   backButton: {
@@ -424,10 +431,12 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: Typography.fontWeight.medium,
   },
+  list: {
+    flex: 1,
+  },
   listContent: {
     padding: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xxxl,
   },
   centerCard: {
     marginBottom: Spacing.md,
@@ -492,17 +501,17 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   serviceChip: {
-    backgroundColor: Colors.primaryLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.primaryLight + '30',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
     maxWidth: '48%',
   },
   serviceChipMore: {
-    backgroundColor: Colors.backgroundDark,
+    backgroundColor: Colors.primaryLight + '30',
   },
   serviceChipText: {
-    fontSize: Typography.fontSize.xs,
+    fontSize: Typography.fontSize.sm,
     color: Colors.primary,
     fontWeight: Typography.fontWeight.medium,
   },

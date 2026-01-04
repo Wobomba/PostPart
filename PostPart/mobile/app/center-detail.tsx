@@ -1,12 +1,30 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, Linking, Alert, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
+import ImageCarousel from '../components/ImageCarousel';
 import { supabase } from '../lib/supabase';
 import { Colors, Typography, Spacing, Layout, BorderRadius } from '../constants/theme';
 import type { Center, CheckIn } from '../../../shared/types';
+
+// Default placeholder images for centers without custom images
+const DEFAULT_CENTER_IMAGES = [
+  require('../assets/adorable-kid-lifestyle.jpg'),
+  require('../assets/portrait-teacher-work-educational-system.jpg'),
+  require('../assets/realistic-scene-with-young-children-with-autism-playing.jpg'),
+];
+
+// Get a consistent random image based on center ID
+const getPlaceholderImage = (centerId: string) => {
+  // Use center ID to generate a consistent index (same center always gets same image)
+  const hash = centerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const index = hash % DEFAULT_CENTER_IMAGES.length;
+  return DEFAULT_CENTER_IMAGES[index];
+};
 
 export default function CenterDetailScreen() {
   const router = useRouter();
@@ -14,6 +32,7 @@ export default function CenterDetailScreen() {
   const [center, setCenter] = useState<Center | null>(null);
   const [visitCount, setVisitCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (id) {
@@ -82,7 +101,7 @@ export default function CenterDetailScreen() {
 
   if (loading) {
     return (
-      <Screen>
+      <Screen edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
@@ -92,7 +111,7 @@ export default function CenterDetailScreen() {
 
   if (!center) {
     return (
-      <Screen>
+      <Screen edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
           <Text style={styles.emptyEmoji}>🏫</Text>
           <Text style={styles.emptyText}>Center not found</Text>
@@ -103,30 +122,28 @@ export default function CenterDetailScreen() {
   }
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Header with back button */}
-        <View style={styles.headerContainer}>
-          <Button
-            title="← Back"
-            onPress={() => router.back()}
-            variant="ghost"
-          />
-        </View>
-
-        {/* Center Image - Only show if image_url looks like an image, not a map link */}
-        {center.image_url && !center.image_url.includes('maps.google') && !center.image_url.includes('maps.apple') && 
-         (center.image_url.includes('.jpg') || center.image_url.includes('.png') || center.image_url.includes('.jpeg') || center.image_url.includes('.webp')) ? (
-          <Image
-            source={{ uri: center.image_url }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.imagePlaceholderText}>🏫</Text>
-          </View>
-        )}
+    <Screen edges={['top', 'bottom']}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Spacing.xxxl + insets.bottom }
+        ]} 
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero Image Section - Slideshow */}
+        <ImageCarousel
+          images={center.images && center.images.length > 0 
+            ? center.images.filter(img => img && !img.includes('maps.google') && !img.includes('maps.apple'))
+            : center.image_url && !center.image_url.includes('maps.google') && !center.image_url.includes('maps.apple') &&
+              (center.image_url.includes('.jpg') || center.image_url.includes('.png') || 
+               center.image_url.includes('.jpeg') || center.image_url.includes('.webp'))
+              ? [center.image_url]
+              : []
+          }
+          height={350}
+          placeholderImage={getPlaceholderImage(center.id)}
+        />
 
         {/* Center Name & Verification */}
         <View style={styles.titleContainer}>
@@ -142,7 +159,9 @@ export default function CenterDetailScreen() {
         {visitCount > 0 && (
           <Card style={styles.visitCard}>
             <View style={styles.visitContent}>
-              <Text style={styles.visitEmoji}>📊</Text>
+              <View style={styles.visitIconContainer}>
+                <Ionicons name="stats-chart" size={28} color={Colors.primary} />
+              </View>
               <View style={styles.visitInfo}>
                 <Text style={styles.visitCount}>{visitCount}</Text>
                 <Text style={styles.visitLabel}>Visit{visitCount !== 1 ? 's' : ''}</Text>
@@ -161,7 +180,7 @@ export default function CenterDetailScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Address Information</Text>
           
-          <InfoRow icon="📍" label="Address">
+          <InfoRow iconName="location" label="Address">
             {[center.address, center.city, center.district, center.region].filter(Boolean).join(', ')}
           </InfoRow>
 
@@ -179,8 +198,8 @@ export default function CenterDetailScreen() {
             <Text style={styles.sectionTitle}>Services Offered</Text>
             <View style={styles.servicesContainer}>
               {center.services_offered.map((service, index) => (
-                <View key={index} style={styles.serviceItem}>
-                  <Text style={styles.serviceText}>• {service}</Text>
+                <View key={index} style={styles.serviceTag}>
+                  <Text style={styles.serviceText}>{service}</Text>
                 </View>
               ))}
             </View>
@@ -200,7 +219,7 @@ export default function CenterDetailScreen() {
           <Text style={styles.sectionTitle}>Details</Text>
           
           {center.operating_schedule && (
-            <InfoRow icon="🕒" label="Operating Hours">
+            <InfoRow iconName="time" label="Operating Hours">
               {center.operating_schedule === '6am-6pm' && '6:00 AM - 6:00 PM (Standard Day Care)'}
               {center.operating_schedule === '24/7' && '24/7 (Round the Clock)'}
               {center.operating_schedule === 'weekdays' && 'Weekdays Only (Monday - Friday)'}
@@ -210,13 +229,13 @@ export default function CenterDetailScreen() {
           )}
           
           {center.age_range && (
-            <InfoRow icon="👶" label="Age Range">
+            <InfoRow iconName="happy" label="Age Range">
               {center.age_range}
             </InfoRow>
           )}
           
           {center.capacity && (
-            <InfoRow icon="👥" label="Capacity">
+            <InfoRow iconName="people" label="Capacity">
               {center.capacity} children
             </InfoRow>
           )}
@@ -241,14 +260,16 @@ export default function CenterDetailScreen() {
 }
 
 interface InfoRowProps {
-  icon: string;
+  iconName: string;  // Ionicons name
   label: string;
   children: React.ReactNode;
 }
 
-const InfoRow: React.FC<InfoRowProps> = ({ icon, label, children }) => (
+const InfoRow: React.FC<InfoRowProps> = ({ iconName, label, children }) => (
   <View style={styles.infoRow}>
-    <Text style={styles.infoIcon}>{icon}</Text>
+    <View style={styles.infoIconContainer}>
+      <Ionicons name={iconName as any} size={20} color={Colors.primary} />
+    </View>
     <View style={styles.infoContent}>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{children}</Text>
@@ -262,7 +283,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    paddingBottom: Spacing.xl,
+    // paddingBottom handled dynamically with insets.bottom
   },
   loadingContainer: {
     flex: 1,
@@ -283,28 +304,10 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
     marginBottom: Spacing.lg,
   },
-  headerContainer: {
-    paddingHorizontal: Layout.screenPadding,
-    paddingVertical: Spacing.sm,
-  },
-  image: {
-    width: '100%',
-    height: 200,
-    backgroundColor: Colors.backgroundDark,
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: Colors.backgroundDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imagePlaceholderText: {
-    fontSize: 80,
-  },
   titleContainer: {
     padding: Layout.screenPadding,
-    paddingBottom: Spacing.md,
+    paddingTop: 20,
+    paddingBottom: Spacing.sm,
   },
   title: {
     fontSize: Typography.fontSize.xxxl,
@@ -332,8 +335,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  visitEmoji: {
-    fontSize: 32,
+  visitIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: Spacing.md,
   },
   visitInfo: {
@@ -350,7 +358,7 @@ const styles = StyleSheet.create({
   },
   section: {
     marginHorizontal: Layout.screenPadding,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
@@ -368,8 +376,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: Spacing.md,
   },
-  infoIcon: {
-    fontSize: 20,
+  infoIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: Spacing.md,
   },
   infoContent: {
@@ -385,15 +398,20 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   servicesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.sm,
   },
-  serviceItem: {
-    marginBottom: Spacing.xs,
+  serviceTag: {
+    backgroundColor: Colors.primaryLight + '30',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
   },
   serviceText: {
-    fontSize: Typography.fontSize.md,
-    color: Colors.text,
-    lineHeight: 24,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.medium,
   },
   amenities: {
     flexDirection: 'row',
@@ -401,14 +419,15 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   amenityTag: {
-    backgroundColor: Colors.backgroundDark,
+    backgroundColor: Colors.primaryLight + '30',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.md,
   },
   amenityText: {
     fontSize: Typography.fontSize.sm,
-    color: Colors.text,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.medium,
   },
 });
 

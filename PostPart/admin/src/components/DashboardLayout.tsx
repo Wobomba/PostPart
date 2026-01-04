@@ -37,6 +37,7 @@ import {
   Description as DescriptionIcon,
   ExpandLess,
   ExpandMore,
+  AdminPanelSettings as AdminPanelSettingsIcon,
 } from '@mui/icons-material';
 
 interface DashboardLayoutProps {
@@ -54,9 +55,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [user, setUser] = useState<any>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [organisationsOpen, setOrganisationsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   // Auto-expand Organisations submenu if on organisations or allocations page
@@ -68,16 +74,52 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      // Handle refresh token errors
+      if (sessionError) {
+        if (sessionError.message?.includes('Refresh Token') || sessionError.message?.includes('refresh_token')) {
+          console.warn('Invalid refresh token, clearing session:', sessionError.message);
+          await supabase.auth.signOut();
+          router.replace('/auth/login');
+          return;
+        }
+        throw sessionError;
+      }
       
       if (!session) {
         router.replace('/auth/login');
         return;
       }
 
+      // Check if user has admin role
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', session.user.id)
+        .maybeSingle(); // Use maybeSingle instead of single to handle no rows gracefully
+
+      // If error occurred (not just "no rows")
+      if (roleError && roleError.code !== 'PGRST116') {
+        console.error('Error checking user role:', roleError);
+        await supabase.auth.signOut();
+        router.replace('/auth/unauthorized');
+        return;
+      }
+
+      // If no role found or user is not admin
+      if (!roleData || roleData.role !== 'admin') {
+        // Sign out the user since they're not authorized
+        await supabase.auth.signOut();
+        router.replace('/auth/unauthorized');
+        return;
+      }
+
       setUser(session.user);
     } catch (error) {
       console.error('Error checking auth:', error);
+      // Sign out on error for security
+      await supabase.auth.signOut();
       router.replace('/auth/login');
     } finally {
       setLoading(false);
@@ -101,6 +143,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
+  // Prevent hydration mismatch by not rendering responsive content until mounted
+  if (!mounted) {
+    return (
+      <Box sx={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', bgcolor: '#F5F7FA' }}>
+        <Typography color="text.secondary">Loading...</Typography>
+      </Box>
+    );
+  }
+
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { 
@@ -115,6 +166,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     },
     { href: '/dashboard/parents', label: 'Parents', icon: <PeopleIcon /> },
     { href: '/dashboard/centers', label: 'Centres', icon: <LocationOnIcon /> },
+    { href: '/dashboard/users', label: 'User Management', icon: <AdminPanelSettingsIcon /> },
     { href: '/dashboard/logs', label: 'Activity Logs', icon: <DescriptionIcon /> },
     { href: '/dashboard/bulk-notifications', label: 'Bulk Notifications', icon: <NotificationsIcon /> },
   ];

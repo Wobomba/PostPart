@@ -25,14 +25,39 @@ export default function VerifyOTPScreen() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      // Try verifying with 'signup' type first
+      const { data, error } = await supabase.auth.verifyOtp({
         email: email.toLowerCase().trim(),
         token: otp,
-        type: 'email',
+        type: 'signup',
       });
 
-      if (error) throw error;
+      if (error) {
+        // If signup verification fails, try 'email' type as fallback
+        console.log('Signup verification failed, trying email type:', error.message);
+        const { data: emailData, error: emailError } = await supabase.auth.verifyOtp({
+          email: email.toLowerCase().trim(),
+          token: otp,
+          type: 'email',
+        });
 
+        if (emailError) throw emailError;
+        
+        // Email verification succeeded
+        Alert.alert(
+          'Email Verified! ✅',
+          'Your email has been successfully verified. You can now sign in to your account.',
+          [
+            {
+              text: 'Sign In',
+              onPress: () => router.replace('/(auth)/login'),
+            },
+          ]
+        );
+        return;
+      }
+
+      // Signup verification succeeded
       Alert.alert(
         'Email Verified! ✅',
         'Your email has been successfully verified. You can now sign in to your account.',
@@ -44,7 +69,20 @@ export default function VerifyOTPScreen() {
         ]
       );
     } catch (error: any) {
-      Alert.alert('Verification Failed', error.message || 'Invalid or expired code. Please try again.');
+      console.error('OTP verification error:', error);
+      
+      // Provide more helpful error messages
+      let errorMessage = 'Invalid or expired code. Please try again.';
+      
+      if (error.message?.includes('expired')) {
+        errorMessage = 'This verification code has expired. Please request a new one.';
+      } else if (error.message?.includes('invalid')) {
+        errorMessage = 'Invalid verification code. Please check and try again.';
+      } else if (error.message?.includes('already')) {
+        errorMessage = 'This email is already verified. Please try signing in.';
+      }
+      
+      Alert.alert('Verification Failed', errorMessage);
     } finally {
       setLoading(false);
     }

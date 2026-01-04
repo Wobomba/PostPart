@@ -96,7 +96,8 @@ export default function QuickAccessScreen() {
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingTop: 20,
+    paddingBottom: Spacing.sm,
     backgroundColor: Colors.background,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.divider,
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
     paddingBottom: Spacing.xxxl,
   },
   actionsGrid: {

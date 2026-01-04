@@ -12,6 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
@@ -22,6 +23,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -213,34 +215,37 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <Screen>
+    <Screen edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Button
-            title=""
-            icon="arrow-back"
-            variant="ghost"
-            size="small"
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/(tabs)/profile');
-              }
-            }}
-            style={styles.backButton}
-          />
-          <Text style={styles.headerTitle}>Edit Profile</Text>
-          <View style={styles.headerSpacer} />
+        <View style={styles.headerContainer}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/profile');
+                }
+              }}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Edit Profile</Text>
+            <View style={styles.headerSpacer} />
+          </View>
         </View>
 
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Spacing.xxxl + insets.bottom },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {/* Profile Avatar */}
@@ -414,32 +419,36 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  headerContainer: {
+    backgroundColor: Colors.background,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.divider,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 20,
+    paddingBottom: Spacing.sm,
   },
   backButton: {
-    marginLeft: 0,
-    paddingLeft: 0,
+    padding: Spacing.xs,
+    marginRight: Spacing.sm,
   },
   headerTitle: {
-    fontSize: Typography.fontSize.lg,
+    fontSize: Typography.fontSize.xxl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.text,
+    flex: 1,
   },
   headerSpacer: {
-    width: 44,
+    width: 40,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing.xxxl,
+    // paddingBottom is now handled dynamically with safe area insets
   },
   avatarSection: {
     alignItems: 'center',

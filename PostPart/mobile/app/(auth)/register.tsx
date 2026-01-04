@@ -94,20 +94,23 @@ export default function RegisterScreen() {
           ]
         );
       } else {
-        // Email confirmation is enabled - redirect to OTP verification
-        Alert.alert(
-          'Check Your Email! 📧',
-          'We sent an 8-digit verification code to your email. Please enter it to verify your account.',
-          [
-            {
-              text: 'Verify Now',
-              onPress: () => router.push({
-                pathname: '/(auth)/verify-otp',
-                params: { email: formData.email.toLowerCase().trim() },
-              }),
-            },
-          ]
-        );
+        // Email confirmation is enabled - show success message and navigate
+        const userEmail = formData.email.toLowerCase().trim();
+        
+        // Navigate to OTP verification screen
+        router.replace({
+          pathname: '/(auth)/verify-otp',
+          params: { email: userEmail },
+        });
+        
+        // Show alert after navigation starts
+        setTimeout(() => {
+          Alert.alert(
+            'Check Your Email! 📧',
+            `We sent an 8-digit verification code to ${userEmail}. Please enter it to verify your account.`,
+            [{ text: 'OK' }]
+          );
+        }, 100);
       }
     } catch (error: any) {
       console.error('Registration error:', error);
@@ -221,7 +224,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    padding: Layout.screenPadding,
+    padding: Spacing.md,
   },
   header: {
     alignItems: 'center',

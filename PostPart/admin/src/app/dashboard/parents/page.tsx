@@ -7,6 +7,8 @@ import ParentForm from '../../../components/ParentForm';
 import { supabase } from '../../../../lib/supabase';
 import { logActivity } from '../../../utils/activityLogger';
 import { generateParentPDF } from '../../../utils/pdfExport';
+import { generateParentCSV } from '../../../utils/csvExport';
+import ExportDialog from '../../../components/ExportDialog';
 import { useDebounce } from '../../../hooks/useDebounce';
 import {
   Box,
@@ -99,6 +101,7 @@ export default function ParentsPage() {
   const [viewFullDetails, setViewFullDetails] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editingParent, setEditingParent] = useState<Profile | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -412,6 +415,7 @@ export default function ParentsPage() {
         .select(`
           id,
           check_in_time,
+          check_out_time,
           child_id,
           center_id,
           notes,
@@ -467,11 +471,16 @@ export default function ParentsPage() {
     }
   };
 
-  const generateParentReport = () => {
+  const handleExportClick = () => {
+    if (!viewingParent) return;
+    setExportDialogOpen(true);
+  };
+
+  const generateParentReport = (format: 'pdf' | 'csv', dateRange?: { startDate?: Date; endDate?: Date }) => {
     if (!viewingParent) return;
 
     // Prepare check-ins data
-    const checkIns = viewRecentCheckIns.map((c: any) => {
+    let checkIns = viewRecentCheckIns.map((c: any) => {
       const child = Array.isArray(c.children) ? c.children[0] : c.children;
       const center = Array.isArray(c.centers) ? c.centers[0] : c.centers;
       return {
@@ -484,7 +493,21 @@ export default function ParentsPage() {
       };
     });
 
-    generateParentPDF({
+    // Filter check-ins by date range if provided
+    if (dateRange?.startDate || dateRange?.endDate) {
+      checkIns = checkIns.filter((c) => {
+        const checkInDate = new Date(c.check_in_time);
+        if (dateRange.startDate && checkInDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (checkInDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+
+    const reportData = {
       full_name: viewingParent.full_name,
       email: viewingParent.email,
       phone: viewingParent.phone,
@@ -494,7 +517,13 @@ export default function ParentsPage() {
       children: viewChildren,
       checkIns: checkIns,
       totalCheckIns: viewingParent.checkInCount,
-    });
+    };
+
+    if (format === 'pdf') {
+      generateParentPDF(reportData, dateRange);
+    } else {
+      generateParentCSV(reportData, dateRange);
+    }
 
     // Log the export action
     logActivity({
@@ -502,12 +531,17 @@ export default function ParentsPage() {
       entityType: 'parent',
       entityId: viewingParent.id,
       entityName: viewingParent.full_name,
-      description: `Admin exported detailed report for parent ${viewingParent.full_name}`,
+      description: `Admin exported ${format.toUpperCase()} report for parent ${viewingParent.full_name}${dateRange ? ` (${dateRange.startDate?.toLocaleDateString()} - ${dateRange.endDate?.toLocaleDateString()})` : ''}`,
       metadata: {
         action: 'export_parent_report',
+        format: format,
         children_count: viewChildren.length,
-        checkins_count: viewRecentCheckIns.length,
+        checkins_count: checkIns.length,
         exported_at: new Date().toISOString(),
+        date_range: dateRange ? {
+          start: dateRange.startDate?.toISOString(),
+          end: dateRange.endDate?.toISOString(),
+        } : undefined,
       },
     });
   };
@@ -865,8 +899,8 @@ export default function ParentsPage() {
                               size="small"
                               onClick={() => {
                                 handleViewClick(parent);
-                                // Will generate report when dialog opens
-                                setTimeout(() => generateParentReport(), 1000);
+                                // Open export dialog after a short delay
+                                setTimeout(() => setExportDialogOpen(true), 1000);
                               }}
                               sx={{ 
                                 color: '#64748b',
@@ -1116,7 +1150,7 @@ export default function ParentsPage() {
             <Button 
               variant="contained" 
               startIcon={<GetAppIcon />}
-              onClick={generateParentReport}
+              onClick={handleExportClick}
               sx={{ bgcolor: '#E91E63', '&:hover': { bgcolor: '#C2185B' } }}
             >
               Export Report
@@ -1164,6 +1198,12 @@ export default function ParentsPage() {
           </Box>
         </Drawer>
       </Box>
+      <ExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={generateParentReport}
+        title="Export Parent Report"
+      />
     </DashboardLayout>
   );
 }

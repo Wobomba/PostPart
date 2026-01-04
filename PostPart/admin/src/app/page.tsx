@@ -15,10 +15,34 @@ export default function Home() {
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      // Handle refresh token errors
+      if (sessionError) {
+        if (sessionError.message?.includes('Refresh Token') || sessionError.message?.includes('refresh_token')) {
+          console.warn('Invalid refresh token, clearing session:', sessionError.message);
+          await supabase.auth.signOut();
+          router.replace('/welcome');
+          return;
+        }
+        throw sessionError;
+      }
       
       if (session) {
-        router.replace('/dashboard');
+        // Check if user has admin role before allowing dashboard access
+        const { data: roleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .maybeSingle(); // Use maybeSingle instead of single to handle no rows gracefully
+
+        // If error occurred (not just "no rows") or no role or not admin
+        if ((roleError && roleError.code !== 'PGRST116') || !roleData || roleData.role !== 'admin') {
+          await supabase.auth.signOut();
+          router.replace('/auth/login');
+        } else {
+          router.replace('/dashboard');
+        }
       } else {
         router.replace('/welcome');
       }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
@@ -10,6 +11,7 @@ import type { AccessLogSummary } from '../../../shared/types';
 
 export default function AccessLogsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [logs, setLogs] = useState<AccessLogSummary[]>([]);
   const [totalVisits, setTotalVisits] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -122,7 +124,7 @@ export default function AccessLogsScreen() {
   );
 
   return (
-    <Screen>
+    <Screen edges={['top', 'bottom']}>
       {/* Fixed Header */}
       <View style={styles.headerContainer}>
         {/* Header with Back Button and Title */}
@@ -168,7 +170,11 @@ export default function AccessLogsScreen() {
         data={logs}
         renderItem={renderLogCard}
         keyExtractor={(item) => item.center_id}
-        contentContainerStyle={styles.listContent}
+        style={styles.list}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: Spacing.xxxl + insets.bottom },
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
@@ -207,6 +213,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
+    paddingTop: 20,
     paddingBottom: Spacing.sm,
   },
   backButton: {
@@ -255,10 +262,12 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
     textAlign: 'center',
   },
+  list: {
+    flex: 1,
+  },
   listContent: {
     padding: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xxxl,
   },
   logCard: {
     marginBottom: Spacing.md,

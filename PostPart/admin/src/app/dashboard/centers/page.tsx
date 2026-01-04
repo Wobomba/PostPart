@@ -9,6 +9,8 @@ import QRCodeManagement from '../../../components/QRCodeManagement';
 import { supabase } from '../../../../lib/supabase';
 import { logActivity } from '../../../utils/activityLogger';
 import { generateCentrePDF } from '../../../utils/pdfExport';
+import { generateCentreCSV } from '../../../utils/csvExport';
+import ExportDialog from '../../../components/ExportDialog';
 import { useDebounce } from '../../../hooks/useDebounce';
 import {
   Box,
@@ -99,6 +101,7 @@ export default function CentersPage() {
   const [deleting, setDeleting] = useState(false);
   const [qrCodeDialogOpen, setQRCodeDialogOpen] = useState(false);
   const [qrCodeCenter, setQRCodeCenter] = useState<Center | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -306,21 +309,39 @@ export default function CentersPage() {
     setQRCodeDialogOpen(true);
   };
 
-  const generateCenterReport = async () => {
+  const handleExportClick = () => {
+    if (!viewingCenter) return;
+    setExportDialogOpen(true);
+  };
+
+  const generateCenterReport = async (format: 'pdf' | 'csv', dateRange?: { startDate?: Date; endDate?: Date }) => {
     if (!viewingCenter) return;
 
     try {
-      // Fetch recent check-ins for this center
-      const { data: recentCheckIns, error: checkInsError } = await supabase
+      // Build query for check-ins
+      let checkInsQuery = supabase
         .from('checkins')
         .select(`
           check_in_time,
           profiles!inner(full_name),
           children!inner(first_name, last_name)
         `)
-        .eq('center_id', viewingCenter.id)
+        .eq('center_id', viewingCenter.id);
+
+      // Apply date range filter if provided
+      if (dateRange?.startDate) {
+        checkInsQuery = checkInsQuery.gte('check_in_time', dateRange.startDate.toISOString());
+      }
+      if (dateRange?.endDate) {
+        const endDate = new Date(dateRange.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        checkInsQuery = checkInsQuery.lte('check_in_time', endDate.toISOString());
+      }
+
+      // Fetch recent check-ins for this center
+      const { data: recentCheckIns, error: checkInsError } = await checkInsQuery
         .order('check_in_time', { ascending: false })
-        .limit(20);
+        .limit(1000); // Increase limit when filtering by date range
 
       if (checkInsError) throw checkInsError;
 
@@ -334,23 +355,33 @@ export default function CentersPage() {
 
       const uniqueParents = new Set(uniqueParentsData?.map((c: any) => c.parent_id)).size;
 
-      // Get weekly check-ins
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const { count: weeklyCheckIns } = await supabase
-        .from('checkins')
-        .select('*', { count: 'exact', head: true })
-        .eq('center_id', viewingCenter.id)
-        .gte('check_in_time', sevenDaysAgo.toISOString());
+      // Get weekly check-ins (only if no date range filter)
+      let weeklyCheckIns = 0;
+      let monthlyCheckIns = 0;
+      if (!dateRange?.startDate && !dateRange?.endDate) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const { count: weekly } = await supabase
+          .from('checkins')
+          .select('*', { count: 'exact', head: true })
+          .eq('center_id', viewingCenter.id)
+          .gte('check_in_time', sevenDaysAgo.toISOString());
+        weeklyCheckIns = weekly || 0;
 
-      // Get monthly check-ins
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const { count: monthlyCheckIns } = await supabase
-        .from('checkins')
-        .select('*', { count: 'exact', head: true })
-        .eq('center_id', viewingCenter.id)
-        .gte('check_in_time', thirtyDaysAgo.toISOString());
+        // Get monthly check-ins
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const { count: monthly } = await supabase
+          .from('checkins')
+          .select('*', { count: 'exact', head: true })
+          .eq('center_id', viewingCenter.id)
+          .gte('check_in_time', thirtyDaysAgo.toISOString());
+        monthlyCheckIns = monthly || 0;
+      } else {
+        // If date range is provided, calculate counts within that range
+        weeklyCheckIns = recentCheckIns?.length || 0;
+        monthlyCheckIns = recentCheckIns?.length || 0;
+      }
 
       // Format check-ins data
       const formattedCheckIns = (recentCheckIns || []).map((c: any) => ({
@@ -373,8 +404,7 @@ export default function CentersPage() {
         }
       }
 
-      // Generate PDF
-      generateCentrePDF({
+      const reportData = {
         name: viewingCenter.name,
         address: viewingCenter.address,
         city: viewingCenter.city,
@@ -393,7 +423,14 @@ export default function CentersPage() {
         monthlyCheckIns: monthlyCheckIns || 0,
         uniqueParents: uniqueParents,
         recentCheckIns: formattedCheckIns,
-      });
+      };
+
+      // Generate export based on format
+      if (format === 'pdf') {
+        generateCentrePDF(reportData, dateRange);
+      } else {
+        generateCentreCSV(reportData, dateRange);
+      }
 
       // Log the export activity
       logActivity({
@@ -401,7 +438,7 @@ export default function CentersPage() {
         entityType: 'center',
         entityId: viewingCenter.id,
         entityName: viewingCenter.name,
-        description: `Exported PDF report for centre: ${viewingCenter.name}`,
+        description: `Exported ${format.toUpperCase()} report for centre: ${viewingCenter.name}${dateRange ? ` (${dateRange.startDate?.toLocaleDateString()} - ${dateRange.endDate?.toLocaleDateString()})` : ''}`,
       });
     } catch (error) {
       console.error('Error generating center report:', error);
@@ -731,19 +768,40 @@ export default function CentersPage() {
               ),
             }}
             sx={{
+              '& .MuiInputBase-root': {
+                fontSize: '0.875rem',
+              },
               '& .MuiOutlinedInput-root': {
                 '&:hover fieldset': { borderColor: '#E91E63' },
                 '&.Mui-focused fieldset': { borderColor: '#E91E63' },
+              },
+              '& input::placeholder': {
+                fontSize: '0.875rem',
               },
             }}
           />
 
           <FormControl fullWidth>
-            <InputLabel>Status</InputLabel>
+            <InputLabel sx={{ fontSize: '0.875rem' }}>Status</InputLabel>
             <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               label="Status"
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    '& .MuiMenuItem-root': {
+                      fontSize: '0.875rem',
+                    },
+                  },
+                },
+              }}
+              sx={{
+                fontSize: '0.875rem',
+                '& .MuiSelect-select': {
+                  fontSize: '0.875rem',
+                },
+              }}
             >
               <MenuItem value="all">All Centres</MenuItem>
               <MenuItem value="verified">Verified Only</MenuItem>
@@ -1136,23 +1194,34 @@ export default function CentersPage() {
                       <Typography variant="body2" color="text.secondary">
                         {[viewingCenter.city, viewingCenter.district, viewingCenter.region].filter(Boolean).join(', ')}
                       </Typography>
-                      {viewingCenter.map_link && (viewingCenter.map_link.startsWith('http://') || viewingCenter.map_link.startsWith('https://')) && (
-                        <Button
-                          size="small"
-                          href={viewingCenter.map_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          startIcon={<LocationOnIcon />}
-                          sx={{
-                            mt: 1,
-                            textTransform: 'none',
-                            color: '#4CAF50',
-                            '&:hover': { bgcolor: 'rgba(76, 175, 80, 0.04)' },
-                          }}
-                        >
-                          Open in Maps
-                        </Button>
-                      )}
+                      {viewingCenter.map_link && (() => {
+                        try {
+                          // Validate URL to prevent XSS
+                          const url = new URL(viewingCenter.map_link);
+                          if (url.protocol === 'http:' || url.protocol === 'https:') {
+                            return (
+                              <Button
+                                size="small"
+                                href={url.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                startIcon={<LocationOnIcon />}
+                                sx={{
+                                  mt: 1,
+                                  textTransform: 'none',
+                                  color: '#4CAF50',
+                                  '&:hover': { bgcolor: 'rgba(76, 175, 80, 0.04)' },
+                                }}
+                              >
+                                Open in Maps
+                              </Button>
+                            );
+                          }
+                        } catch (e) {
+                          // Invalid URL - don't render button
+                        }
+                        return null;
+                      })()}
                     </Box>
 
                     {/* Capacity */}
@@ -1233,7 +1302,7 @@ export default function CentersPage() {
           <Divider />
           <DialogActions sx={{ p: 2 }}>
             <Button
-              onClick={generateCenterReport}
+              onClick={handleExportClick}
               variant="outlined"
               startIcon={<GetAppIcon />}
               sx={{
@@ -1312,6 +1381,12 @@ export default function CentersPage() {
           />
         )}
       </Box>
+      <ExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        onExport={generateCenterReport}
+        title="Export Centre Report"
+      />
     </DashboardLayout>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Camera, CameraView, useCameraPermissions } from 'expo-camera';
 import { Button } from '../components/Button';
 import { Screen } from '../components/Screen';
@@ -33,7 +34,9 @@ export default function ScanScreen() {
     return (
       <Screen>
         <View style={styles.permissionContainer}>
-          <Text style={styles.permissionEmoji}>📷</Text>
+          <View style={styles.permissionIconContainer}>
+            <Ionicons name="camera" size={80} color={Colors.primary} />
+          </View>
           <Text style={styles.permissionTitle}>Camera Access Needed</Text>
           <Text style={styles.permissionText}>
             PostPart needs camera access to scan QR codes at daycare centers
@@ -42,6 +45,7 @@ export default function ScanScreen() {
             title="Grant Permission"
             onPress={requestPermission}
             fullWidth
+            style={styles.permissionButton}
           />
           <Button
             title="Go Back"
@@ -173,9 +177,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  permissionEmoji: {
-    fontSize: 80,
+  permissionIconContainer: {
     marginBottom: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  permissionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   permissionTitle: {
     fontSize: Typography.fontSize.xxl,

@@ -93,7 +93,8 @@ const addFooter = (doc: jsPDF) => {
 };
 
 // Organisation Report
-export const generateOrganisationPDF = (data: {
+export const generateOrganisationPDF = (
+  data: {
   name: string;
   industry?: string;
   status: string;
@@ -110,7 +111,9 @@ export const generateOrganisationPDF = (data: {
   lastCheckInDate?: string;
   parents: Array<{ full_name: string; email?: string; created_at: string }>;
   recentCheckIns: Array<any>;
-}) => {
+  },
+  dateRange?: { startDate?: Date; endDate?: Date }
+) => {
   const doc = new jsPDF();
   
   // Add header
@@ -200,10 +203,24 @@ export const generateOrganisationPDF = (data: {
     doc.text('Associated Parents', 15, currentY);
     currentY += 8;
     
+    let filteredParents = data.parents;
+    if (dateRange?.startDate || dateRange?.endDate) {
+      filteredParents = data.parents.filter((p) => {
+        const createdDate = new Date(p.created_at);
+        if (dateRange.startDate && createdDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (createdDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+    
     autoTable(doc, {
       startY: currentY,
       head: [['Name', 'Email', 'Joined Date']],
-      body: data.parents.map((p) => [
+      body: filteredParents.map((p) => [
         p.full_name,
         p.email || 'N/A',
         new Date(p.created_at).toLocaleDateString(),
@@ -241,7 +258,21 @@ export const generateOrganisationPDF = (data: {
     doc.text('Recent Check-Ins', 15, currentY);
     currentY += 8;
     
-    const checkInData = data.recentCheckIns.map((c: any) => {
+    let filteredCheckIns = data.recentCheckIns;
+    if (dateRange?.startDate || dateRange?.endDate) {
+      filteredCheckIns = data.recentCheckIns.filter((c: any) => {
+        const checkInDate = new Date(c.check_in_time);
+        if (dateRange.startDate && checkInDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (checkInDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+    
+    const checkInData = filteredCheckIns.map((c: any) => {
       const child = Array.isArray(c.children) ? c.children[0] : c.children;
       const center = Array.isArray(c.centers) ? c.centers[0] : c.centers;
       return [
@@ -404,7 +435,8 @@ export const generateActivityLogsPDF = (
 };
 
 // Parent Report
-export const generateParentPDF = (data: {
+export const generateParentPDF = (
+  data: {
   full_name: string;
   email?: string;
   phone?: string;
@@ -423,7 +455,9 @@ export const generateParentPDF = (data: {
     child: { first_name: string; last_name: string };
   }>;
   totalCheckIns: number;
-}) => {
+  },
+  dateRange?: { startDate?: Date; endDate?: Date }
+) => {
   const doc = new jsPDF();
   
   // Add header
@@ -553,7 +587,21 @@ export const generateParentPDF = (data: {
     doc.text('Recent Check-Ins', 15, currentY);
     currentY += 8;
     
-    const checkInData = data.checkIns.map((c) => [
+    let filteredCheckIns = data.checkIns;
+    if (dateRange?.startDate || dateRange?.endDate) {
+      filteredCheckIns = data.checkIns.filter((c) => {
+        const checkInDate = new Date(c.check_in_time);
+        if (dateRange.startDate && checkInDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (checkInDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+    
+    const checkInData = filteredCheckIns.map((c) => [
       new Date(c.check_in_time).toLocaleString(),
       c.center.name,
       `${c.child.first_name} ${c.child.last_name}`,
@@ -588,7 +636,8 @@ export const generateParentPDF = (data: {
 };
 
 // Centre Report
-export const generateCentrePDF = (data: {
+export const generateCentrePDF = (
+  data: {
   name: string;
   address: string;
   city: string;
@@ -611,7 +660,9 @@ export const generateCentrePDF = (data: {
     parent: { full_name: string };
     child: { first_name: string; last_name: string };
   }>;
-}) => {
+  },
+  dateRange?: { startDate?: Date; endDate?: Date }
+) => {
   const doc = new jsPDF();
   
   // Add header
@@ -740,7 +791,21 @@ export const generateCentrePDF = (data: {
     doc.text('Recent Check-Ins', 15, currentY);
     currentY += 8;
     
-    const checkInData = data.recentCheckIns.map((c) => [
+    let filteredCheckIns = data.recentCheckIns;
+    if (dateRange?.startDate || dateRange?.endDate) {
+      filteredCheckIns = data.recentCheckIns.filter((c) => {
+        const checkInDate = new Date(c.check_in_time);
+        if (dateRange.startDate && checkInDate < dateRange.startDate) return false;
+        if (dateRange.endDate) {
+          const endDate = new Date(dateRange.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          if (checkInDate > endDate) return false;
+        }
+        return true;
+      });
+    }
+    
+    const checkInData = filteredCheckIns.map((c) => [
       new Date(c.check_in_time).toLocaleString(),
       c.parent.full_name,
       `${c.child.first_name} ${c.child.last_name}`,

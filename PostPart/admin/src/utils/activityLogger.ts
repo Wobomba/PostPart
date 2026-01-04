@@ -4,6 +4,10 @@ export type ActivityType =
   | 'user_account_created'
   | 'user_login'
   | 'user_logout'
+  | 'user_role_assigned'
+  | 'user_role_changed'
+  | 'admin_user_created'
+  | 'user_deleted'
   | 'parent_created'
   | 'parent_organisation_assigned'
   | 'parent_organisation_updated'
@@ -19,6 +23,8 @@ export type ActivityType =
   | 'center_deleted'
   | 'center_verified'
   | 'checkin_completed'
+  | 'checkout_completed'
+  | 'pickup_reminder_sent'
   | 'allocation_created'
   | 'allocation_updated'
   | 'report_exported'
@@ -74,11 +80,17 @@ export async function logActivity(params: LogActivityParams) {
     });
 
     if (error) {
-      console.error('Error logging activity:', error);
+      // Only log meaningful errors, not empty objects
+      if (error.message || error.code) {
+        console.error('Error logging activity:', error.message || error.code || error);
+      }
       // Don't throw - logging should not break the main flow
     }
-  } catch (error) {
-    console.error('Error in logActivity:', error);
+  } catch (error: any) {
+    // Only log meaningful errors
+    if (error?.message || error?.code) {
+      console.error('Error in logActivity:', error.message || error.code || error);
+    }
     // Don't throw - logging should not break the main flow
   }
 }
@@ -104,5 +116,17 @@ export const ActivityDescriptions = {
     `${orgName} status changed from ${oldStatus} to ${newStatus}`,
   checkInCompleted: (parentName: string, centerName: string) =>
     `${parentName} checked in at ${centerName}`,
+  checkOutCompleted: (parentName: string, centerName: string) =>
+    `${parentName} checked out from ${centerName}`,
+  pickupReminderSent: (parentName: string, childName: string, centerName: string) =>
+    `Pickup reminder sent to ${parentName} for ${childName} at ${centerName}`,
+  userRoleAssigned: (userEmail: string, role: string) =>
+    `User ${userEmail} assigned role: ${role}`,
+  userRoleChanged: (userEmail: string, oldRole: string, newRole: string) =>
+    `User ${userEmail} role changed from ${oldRole} to ${newRole}`,
+  adminUserCreated: (userEmail: string) =>
+    `New admin user created: ${userEmail}`,
+  userDeleted: (userEmail: string) =>
+    `User account deleted: ${userEmail}`,
 };
 

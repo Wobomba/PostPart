@@ -190,9 +190,10 @@ export default function ChildrenManagementScreen() {
         data={children}
         renderItem={renderChild}
         keyExtractor={(item) => item.id}
+        style={styles.list}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: Spacing.xxxl + 60 + insets.bottom },
+          { paddingBottom: Spacing.xxxl + insets.bottom },
         ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
@@ -217,17 +218,6 @@ export default function ChildrenManagementScreen() {
         }
         showsVerticalScrollIndicator={false}
       />
-
-      {/* Floating Add Button */}
-      {children.length > 0 && (
-        <TouchableOpacity
-          style={[styles.fab, { bottom: Spacing.xl + insets.bottom }]}
-          onPress={() => router.push('/children/add')}
-          activeOpacity={0.9}
-        >
-          <Ionicons name="add" size={28} color={Colors.textInverse} />
-        </TouchableOpacity>
-      )}
     </Screen>
   );
 }
@@ -242,6 +232,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
+    paddingTop: 20,
     paddingBottom: Spacing.sm,
   },
   backButton: {
@@ -256,6 +247,9 @@ const styles = StyleSheet.create({
   },
   addButton: {
     padding: Spacing.xs,
+  },
+  list: {
+    flex: 1,
   },
   listContent: {
     padding: Spacing.lg,
@@ -341,17 +335,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.primary,
-  },
-  fab: {
-    position: 'absolute',
-    right: Spacing.xl,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadows.large,
   },
 });
 

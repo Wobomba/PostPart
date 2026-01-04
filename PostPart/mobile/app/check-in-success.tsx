@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Colors, Typography, Spacing, Layout } from '../constants/theme';
@@ -17,7 +18,9 @@ export default function CheckInSuccessScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.successEmoji}>🎉</Text>
+          <View style={styles.successIconContainer}>
+            <Ionicons name="checkmark-circle" size={80} color={Colors.success} />
+          </View>
           <Text style={styles.title}>Check-In Successful!</Text>
         </View>
 
@@ -41,7 +44,9 @@ export default function CheckInSuccessScreen() {
         </Card>
 
         <Card style={styles.messageCard}>
-          <Text style={styles.messageEmoji}>👋</Text>
+          <View style={styles.messageIconContainer}>
+            <Ionicons name="happy-outline" size={48} color={Colors.primary} />
+          </View>
           <Text style={styles.messageText}>
             Have a wonderful day! Your check-in has been recorded and you're all set.
           </Text>
@@ -82,8 +87,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.xl,
   },
-  successEmoji: {
-    fontSize: 80,
+  successIconContainer: {
     marginBottom: Spacing.md,
   },
   title: {
@@ -118,8 +122,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     marginBottom: Spacing.xl,
   },
-  messageEmoji: {
-    fontSize: 48,
+  messageIconContainer: {
     marginBottom: Spacing.md,
   },
   messageText: {
