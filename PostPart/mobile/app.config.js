@@ -4,10 +4,11 @@ module.exports = {
     slug: "postpart-mobile",
     version: "1.0.0",
     orientation: "portrait",
-    // icon: "./assets/icon.png", // TODO: Add icon image
+    icon: "./assets/postpart-logo.png",
     userInterfaceStyle: "light",
     scheme: "postpart",
     splash: {
+      image: "./assets/splash-icon.png",
       resizeMode: "contain",
       backgroundColor: "#FFFFFF" // White background matching PostPart branding
     },
@@ -22,11 +23,15 @@ module.exports = {
       }
     },
     android: {
+      adaptiveIcon: {
+        foregroundImage: "./assets/postpart-logo.png",
+        backgroundColor: "#FFFFFF"
+      },
       package: "com.postpart.mobile",
       permissions: ["CAMERA", "READ_MEDIA_IMAGES", "WRITE_EXTERNAL_STORAGE"]
     },
     web: {
-      // favicon: "./assets/favicon.png" // TODO: Add favicon
+      favicon: "./assets/favicon.png"
     },
     plugins: [
       [
