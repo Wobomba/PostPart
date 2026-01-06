@@ -51,6 +51,11 @@ module.exports = {
     ],
     experiments: {
       typedRoutes: true
+    },
+    extra: {
+      eas: {
+        projectId: "f35b4e99-1359-48d6-8b8d-863b14c3cebf"
+      }
     }
   }
 };
