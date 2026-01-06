@@ -166,13 +166,13 @@ export default function CenterDetailScreen() {
                 <Text style={styles.visitCount}>{visitCount}</Text>
                 <Text style={styles.visitLabel}>Visit{visitCount !== 1 ? 's' : ''}</Text>
               </View>
-              <Button
-                title="View History"
-                onPress={handleViewVisits}
-                variant="outline"
-                size="small"
-              />
             </View>
+            <Button
+              title="View History"
+              onPress={handleViewVisits}
+              variant="outline"
+              style={{ marginTop: 12 }}
+            />
           </Card>
         )}
 
