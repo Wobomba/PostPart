@@ -23,9 +23,6 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "ios": {
-        "bundleIdentifier": "com.postpart.mobile"
-      },
       "env": {
         "NODE_ENV": "production"
       }
