@@ -438,25 +438,41 @@ export default function BulkNotificationsPage() {
         }
 
         for (const chunk of notificationChunks) {
+          // Check for existing records to avoid duplicates
+          // This handles cases where database triggers may have already created records
+          const parentIds = chunk.map((pn: any) => pn.parent_id);
+          const { data: existingRecords } = await supabase
+            .from('parent_notifications')
+            .select('parent_id')
+            .eq('notification_id', notification.id)
+            .in('parent_id', parentIds);
+
+          const existingParentIds = new Set((existingRecords || []).map((r: any) => r.parent_id));
+          
+          // Filter out records that already exist
+          const newRecords = chunk.filter((pn: any) => !existingParentIds.has(pn.parent_id));
+
+          if (newRecords.length === 0) {
+            console.log(`All records in chunk already exist, skipping. Chunk size: ${chunk.length}`);
+            continue;
+          }
+
+          // Insert only new records
           const { data: insertedData, error: insertError } = await supabase
             .from('parent_notifications')
-            .insert(chunk)
+            .insert(newRecords)
             .select();
 
           if (insertError) {
-            console.error('Error inserting parent_notifications chunk:', insertError);
-            console.error('Error type:', typeof insertError);
-            console.error('Error structure:', {
-              message: insertError.message,
-              details: insertError.details,
-              hint: insertError.hint,
-              code: insertError.code,
-              fullError: insertError
-            });
-            console.error('Chunk data (first 3):', chunk.slice(0, 3));
-            console.error('Total chunk size:', chunk.length);
+            // Check if it's a duplicate key error - if so, it's okay, records might have been created between check and insert
+            if (insertError.code === '23505' || insertError.message?.includes('duplicate key') || insertError.message?.includes('unique constraint')) {
+              console.log(`Duplicate key error (records may have been created by trigger), continuing. Chunk size: ${chunk.length}, New records: ${newRecords.length}`);
+              // Continue processing - duplicates are expected if trigger created them between our check and insert
+              continue;
+            }
             
-            // Build comprehensive error message
+            // For other errors, log and throw
+            console.error('Error inserting parent_notifications chunk:', insertError);
             const errorParts: string[] = [];
             if (insertError.message) errorParts.push(insertError.message);
             if (insertError.details) errorParts.push(`Details: ${insertError.details}`);
@@ -470,7 +486,7 @@ export default function BulkNotificationsPage() {
             throw new Error(`Failed to send notifications: ${fullErrorMessage}`);
           }
           
-          console.log(`Successfully inserted chunk of ${chunk.length} notifications`);
+          console.log(`Successfully inserted ${newRecords.length} new notifications (${chunk.length - newRecords.length} already existed)`);
         }
 
         console.log('Successfully inserted all parent notifications');

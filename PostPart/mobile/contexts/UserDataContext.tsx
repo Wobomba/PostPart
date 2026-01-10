@@ -160,22 +160,26 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
           status: profileData.status,
         };
         setProfile(profile);
-        // Set userName from profile, or fallback to auth metadata, or keep existing userName, or 'Parent'
-        let nameToUse = profileData.full_name?.trim();
-        if (!nameToUse || nameToUse === '') {
-          // Try to get from auth metadata as fallback
+        // Set userName from profile - always use profile.full_name if it exists and is not empty
+        const profileName = profileData.full_name?.trim();
+        if (profileName && profileName !== '') {
+          // Always update userName if profile has a valid full_name
+          setUserName(profileName);
+        } else {
+          // If profile doesn't have full_name, try to get from auth metadata as fallback
           try {
             const { data: { user } } = await supabase.auth.getUser();
-            nameToUse = user?.user_metadata?.full_name || user?.user_metadata?.name;
+            const authName = user?.user_metadata?.full_name || user?.user_metadata?.name;
+            if (authName && authName.trim() !== '') {
+              setUserName(authName.trim());
+            } else if (userName === 'Parent') {
+              // Keep 'Parent' if we don't have any name
+              setUserName('Parent');
+            }
           } catch (authError) {
-            // Ignore auth errors
-          }
-          // If still no name, keep existing userName if it's not 'Parent', otherwise use 'Parent'
-          if (!nameToUse || nameToUse === '') {
-            nameToUse = userName && userName !== 'Parent' ? userName : 'Parent';
+            // Ignore auth errors, keep existing userName
           }
         }
-        setUserName(nameToUse);
         if (!skipCache) await Cache.set(CacheKeys.USER_PROFILE, profile);
       } else {
         // If no profile data, try to get name from auth metadata
@@ -492,9 +496,29 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
         )
         .subscribe();
 
+      // Subscribe to profile changes (for when account is activated/updated)
+      const profileChannel = supabase
+        .channel('user-profile-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            // Refresh profile data when profile is updated (e.g., account activated)
+            console.log('Profile updated, refreshing data:', payload);
+            loadFreshData(user.id, true);
+          }
+        )
+        .subscribe();
+
       return () => {
         supabase.removeChannel(checkInsChannel);
         supabase.removeChannel(notificationsChannel);
+        supabase.removeChannel(profileChannel);
       };
     };
 
