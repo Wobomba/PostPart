@@ -71,6 +71,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Get current organization to check if status is changing
+    const { data: currentOrg } = await supabaseAdmin
+      .from('organizations')
+      .select('status')
+      .eq('id', id)
+      .single();
+
     const { data, error } = await supabaseAdmin
       .from('organizations')
       .update(updateData)
@@ -84,6 +91,80 @@ export async function PUT(request: NextRequest) {
         { error: error.message },
         { status: 400 }
       );
+    }
+
+    // If organization status changed, update parent statuses accordingly
+    // Strategy: Store original status before changing, then restore when org becomes active
+    if (currentOrg && updateData.status && currentOrg.status !== updateData.status) {
+      if (updateData.status === 'inactive' || updateData.status === 'suspended') {
+        // Organization is being deactivated/suspended: 
+        // 1. Store the original status of active parents in status_before_org_change
+        // 2. Update active parents to match organization status
+        // This preserves the status of parents who are 'inactive' (waiting for review) 
+        // or 'suspended' (individually suspended)
+        
+        // First, store the original status for active parents
+        const { error: storeStatusError } = await supabaseAdmin
+          .from('profiles')
+          .update({ status_before_org_change: 'active' })
+          .eq('organization_id', id)
+          .eq('status', 'active')
+          .is('status_before_org_change', null); // Only store if not already set
+
+        if (storeStatusError) {
+          console.error('Error storing original parent statuses:', storeStatusError);
+        }
+
+        // Then update active parents to match organization status
+        const { error: parentUpdateError } = await supabaseAdmin
+          .from('profiles')
+          .update({ status: updateData.status })
+          .eq('organization_id', id)
+          .eq('status', 'active'); // Only affect parents that are currently active
+
+        if (parentUpdateError) {
+          console.error('Error updating parent statuses:', parentUpdateError);
+          // Don't fail the request, but log the error
+        } else {
+          console.log(`Updated active parent statuses to ${updateData.status} for organization ${id}`);
+        }
+      } else if (updateData.status === 'active' && (currentOrg.status === 'inactive' || currentOrg.status === 'suspended')) {
+        // Organization is being reactivated: 
+        // Restore parents to their original status (stored in status_before_org_change)
+        // This ensures parents who were 'inactive' (waiting for review) remain 'inactive'
+        // and parents who were 'active' are restored to 'active'
+        
+        // Get the organization's previous status to identify affected parents
+        const orgPreviousStatus = currentOrg.status;
+        
+        // Restore parents that have status_before_org_change set (they were affected by org status change)
+        // and currently match the org's previous status
+        const { data: parentsToRestore } = await supabaseAdmin
+          .from('profiles')
+          .select('id, status_before_org_change')
+          .eq('organization_id', id)
+          .eq('status', orgPreviousStatus)
+          .not('status_before_org_change', 'is', null);
+
+        if (parentsToRestore && parentsToRestore.length > 0) {
+          // Restore each parent to their original status
+          for (const parent of parentsToRestore) {
+            const originalStatus = parent.status_before_org_change;
+            const { error: restoreError } = await supabaseAdmin
+              .from('profiles')
+              .update({ 
+                status: originalStatus,
+                status_before_org_change: null // Clear the stored status after restoration
+              })
+              .eq('id', parent.id);
+
+            if (restoreError) {
+              console.error(`Error restoring parent ${parent.id} to ${originalStatus}:`, restoreError);
+            }
+          }
+          console.log(`Restored ${parentsToRestore.length} parents to their original statuses for organization ${id}`);
+        }
+      }
     }
 
     return NextResponse.json(data, { status: 200 });

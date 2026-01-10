@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,12 +43,13 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase().trim(),
         password: password,
       });
 
       if (error) {
+        console.error('Login error:', error);
         // Check if it's an email confirmation error
         if (error.message.includes('Email not confirmed') || error.message.includes('not confirmed')) {
           Alert.alert(
@@ -68,26 +69,40 @@ export default function LoginScreen() {
               },
             ]
           );
+        } else if (error.message.includes('POST') || error.message.includes('fetch')) {
+          Alert.alert(
+            'Connection Error',
+            'Unable to connect to the server. Please check your internet connection and try again.',
+            [{ text: 'OK' }]
+          );
         } else {
-          throw error;
+          Alert.alert('Sign In Failed', error.message || 'Invalid email or password');
         }
-      } else {
-        // Check parent status after successful authentication
-        const status = await checkParentStatus();
-        
-        if (!status.isActive) {
-          // Parent is inactive or suspended
-          showStatusAlert(status, () => {
-            // Sign them out since they can't use the service
-            supabase.auth.signOut();
-          });
-        } else {
-          // Navigate to home on successful login
-          router.replace('/(tabs)/home');
+      } else if (data?.session) {
+        // Check if user has an organization or organization name
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('organization_id, organization_name')
+            .eq('id', user.id)
+            .single();
+
+          if (!profile?.organization_id && !profile?.organization_name) {
+            // User doesn't have organization, redirect to organization entry
+            router.replace('/(auth)/organization');
+            return;
+          }
         }
+
+        // Navigate to home on successful login
+        // Inactive users will be handled on the home screen
+        router.replace('/(tabs)/home');
       }
     } catch (error: any) {
-      Alert.alert('Sign In Failed', error.message || 'Invalid email or password');
+      console.error('Login exception:', error);
+      const errorMessage = error?.message || error?.toString() || 'An unexpected error occurred';
+      Alert.alert('Sign In Failed', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -145,11 +160,9 @@ export default function LoginScreen() {
 
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>Don't have an account? </Text>
-            <Button
-              title="Create Account"
-              onPress={() => router.push('/(auth)/register')}
-              variant="ghost"
-            />
+            <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
+              <Text style={styles.registerLink}>Create Account</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -171,6 +184,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   header: {
     alignItems: 'center',
@@ -209,14 +223,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+    flexWrap: 'wrap',
   },
   registerText: {
     fontSize: Typography.fontSize.base,
     color: Colors.textLight,
   },
+  registerLink: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.semibold,
+  },
   footer: {
-    marginTop: 'auto',
-    paddingTop: Spacing.xl,
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   footerText: {
     fontSize: Typography.fontSize.xs,

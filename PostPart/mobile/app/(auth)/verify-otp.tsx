@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { supabase } from '../../lib/supabase';
-import { Colors, Typography, Spacing, Layout } from '../../constants/theme';
+import { Colors, Typography, Spacing, Layout, BorderRadius } from '../../constants/theme';
 
 export default function VerifyOTPScreen() {
   const router = useRouter();
@@ -111,7 +112,9 @@ export default function VerifyOTPScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.logo}>📧</Text>
+          <View style={styles.iconContainer}>
+            <Ionicons name="mail" size={48} color={Colors.primary} />
+          </View>
           <Text style={styles.title}>Verify Your Email</Text>
           <Text style={styles.subtitle}>
             We sent an 8-digit verification code to:
@@ -142,12 +145,18 @@ export default function VerifyOTPScreen() {
 
           <View style={styles.resendContainer}>
             <Text style={styles.resendText}>Didn't receive the code? </Text>
-            <Button
-              title="Resend Code"
-              onPress={handleResendOTP}
-              loading={resending}
-              variant="ghost"
-            />
+            <TouchableOpacity 
+              onPress={handleResendOTP} 
+              disabled={resending}
+              activeOpacity={0.7}
+              style={styles.resendButton}
+            >
+              {resending ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Text style={styles.resendLink}>Resend Code</Text>
+              )}
+            </TouchableOpacity>
           </View>
 
           <View style={styles.backContainer}>
@@ -183,9 +192,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xl,
     marginBottom: Spacing.lg,
   },
-  logo: {
-    fontSize: 80,
-    marginBottom: Spacing.md,
+  iconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.round,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   title: {
     fontSize: Typography.fontSize.xxxl,
@@ -223,10 +237,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.lg,
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.sm,
   },
   resendText: {
     fontSize: Typography.fontSize.base,
     color: Colors.textLight,
+  },
+  resendButton: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+  },
+  resendLink: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.semibold,
   },
   backContainer: {
     alignItems: 'center',

@@ -6,6 +6,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,347 +20,58 @@ import { OrganizationSelectionModal } from '../../components/OrganizationSelecti
 import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { HapticFeedback } from '../../utils/effects';
+import { checkParentStatus, ParentStatus } from '../../utils/parentStatus';
+import { useUserData } from '../../contexts/UserDataContext';
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [refreshing, setRefreshing] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [userId, setUserId] = useState<string | null>(null);
-  const [stats, setStats] = useState({
-    centersVisited: 0,
-    totalCheckIns: 0,
-    unreadNotifications: 0,
-  });
-  const [recentCheckIns, setRecentCheckIns] = useState<any[]>([]);
-  const [activeCheckIn, setActiveCheckIn] = useState<any | null>(null);
-  const [frequentCenters, setFrequentCenters] = useState<any[]>([]);
-  const [featuredCenters, setFeaturedCenters] = useState<any[]>([]);
-  const [children, setChildren] = useState<any[]>([]);
+  const [parentStatus, setParentStatus] = useState<ParentStatus | null>(null);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [organizationModalVisible, setOrganizationModalVisible] = useState(false);
+  
+  // Get data from context
+  const {
+    userName,
+    stats,
+    recentCheckIns,
+    activeCheckIn,
+    frequentCenters,
+    featuredCenters,
+    children,
+    refreshing,
+    refreshData,
+    refreshStats,
+    profile,
+    user,
+  } = useUserData();
+  
+  const userId = user?.id || null;
 
   // Refresh data when screen comes into focus (e.g., after checkout)
   useFocusEffect(
     React.useCallback(() => {
-      loadUserData();
-    }, [])
+      refreshData();
+      checkStatus();
+    }, [refreshData])
   );
 
+  const checkStatus = async () => {
+    const status = await checkParentStatus();
+    setParentStatus(status);
+  };
+
+  // Check parent status on mount and when profile changes
   useEffect(() => {
-    loadUserData();
-    
-    // Set up realtime subscription for instant notification updates
-    const setupRealtimeSubscription = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Subscribe to parent_notifications for this user
-      const notificationChannel = supabase
-        .channel('parent-notifications-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'parent_notifications',
-            filter: `parent_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Notification change detected:', payload);
-            // Reload notification count
-            loadNotificationCount();
-          }
-        )
-        .subscribe();
-
-      // Subscribe to check-ins for this user to update active check-in status
-      const checkInsChannel = supabase
-        .channel('home-checkins-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'checkins',
-            filter: `parent_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('Check-in change detected:', payload);
-            // Reload user data to update active check-in and recent check-ins
-            loadUserData();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(notificationChannel);
-        supabase.removeChannel(checkInsChannel);
-      };
-    };
-
-    const cleanup = setupRealtimeSubscription();
-
-    return () => {
-      cleanup.then(cleanupFn => cleanupFn && cleanupFn());
-    };
-  }, []);
-
-  const loadNotificationCount = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Load unread notification count
-      const { data: notifications, error: notificationsError } = await supabase
-        .from('parent_notifications')
-        .select('id')
-        .eq('parent_id', user.id)
-        .eq('is_read', false);
-
-      if (!notificationsError) {
-        setStats(prev => ({
-          ...prev,
-          unreadNotifications: notifications?.length || 0,
-        }));
-      }
-    } catch (err) {
-      console.error('Error loading notification count:', err);
+    checkStatus();
+    // Show organization modal if needed
+    if (profile && !profile.organization_id && parentStatus?.isActive) {
+      setOrganizationModalVisible(true);
     }
-  };
-
-  const loadUserData = async () => {
-    try {
-      const { data: { user }, error: getUserError } = await supabase.auth.getUser();
-      
-      // Handle refresh token errors
-      if (getUserError) {
-        if (getUserError.message?.includes('Refresh Token') || 
-            getUserError.message?.includes('refresh_token') ||
-            getUserError.message?.includes('Invalid Refresh Token')) {
-          console.warn('Invalid refresh token, clearing session:', getUserError.message);
-          await supabase.auth.signOut();
-          router.replace('/(auth)/welcome');
-          return;
-        }
-        // For other errors, continue but set guest name
-        setUserName('Guest');
-        return;
-      }
-      
-      if (!user) {
-        setUserName('Guest');
-        return;
-      }
-
-      // Store user ID for the organization modal
-      setUserId(user.id);
-
-      // Load profile - with proper fallback hierarchy
-      try {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('full_name, organization_id')
-          .eq('id', user.id)
-          .single();
-        
-        if (!profileError && profile) {
-          // Check if user has no organization set - show modal
-          if (!profile.organization_id) {
-            setOrganizationModalVisible(true);
-          }
-          
-          // Set user name
-          if (profile.full_name) {
-            setUserName(profile.full_name);
-          } else {
-            // Priority 2: Use display name from auth metadata
-            const authDisplayName = user.user_metadata?.full_name || user.user_metadata?.name;
-            if (authDisplayName) {
-              setUserName(authDisplayName);
-            } else {
-              // Priority 3: Last resort - use "Parent"
-              setUserName('Parent');
-            }
-          }
-        } else {
-          // Priority 2: Use display name from auth metadata
-          const authDisplayName = user.user_metadata?.full_name || user.user_metadata?.name;
-          if (authDisplayName) {
-            setUserName(authDisplayName);
-          } else {
-            // Priority 3: Last resort - use "Parent"
-            setUserName('Parent');
-          }
-        }
-      } catch (err) {
-        // Silently handle - tables may not exist yet
-        const authDisplayName = user.user_metadata?.full_name || user.user_metadata?.name;
-        if (authDisplayName) {
-          setUserName(authDisplayName);
-        } else {
-          setUserName('Parent');
-        }
-      }
-
-      // Load children - with error handling
-      try {
-        const { data: childrenData, error: childrenError } = await supabase
-          .from('children')
-          .select('*')
-          .eq('parent_id', user.id)
-          .order('date_of_birth', { ascending: false })
-          .limit(3);
-        if (!childrenError) {
-          setChildren(childrenData || []);
-        }
-      } catch (err) {
-        // Silently handle - table may not exist yet
-        setChildren([]);
-      }
-
-      // Load recent check-ins - with error handling (max 5)
-      try {
-        const { data: recentCheckInsData, error: checkInsError } = await supabase
-          .from('checkins')
-          .select(`
-            id,
-            check_in_time,
-            check_out_time,
-            child_id,
-            children (name),
-            centers (id, name, city)
-          `)
-          .eq('parent_id', user.id)
-          .order('check_in_time', { ascending: false })
-          .limit(5);
-        if (!checkInsError) {
-          setRecentCheckIns(recentCheckInsData || []);
-        }
-      } catch (err) {
-        // Silently handle - table may not exist yet
-        setRecentCheckIns([]);
-      }
-
-      // Load active check-in (check-in without check-out) - get the most recent one
-      try {
-        const { data: activeCheckInData, error: activeCheckInError } = await supabase
-          .from('checkins')
-          .select(`
-            id,
-            check_in_time,
-            check_out_time,
-            child_id,
-            children (first_name, last_name),
-            centers (id, name)
-          `)
-          .eq('parent_id', user.id)
-          .is('check_out_time', null)
-          .order('check_in_time', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (activeCheckInError) {
-          console.error('Error loading active check-in:', activeCheckInError);
-          setActiveCheckIn(null);
-        } else {
-          // Only set if there's actually an active check-in (no check_out_time)
-          if (activeCheckInData && !activeCheckInData.check_out_time) {
-            setActiveCheckIn(activeCheckInData);
-          } else {
-            setActiveCheckIn(null);
-          }
-        }
-      } catch (err) {
-        console.error('Error in active check-in load:', err);
-        setActiveCheckIn(null);
-      }
-
-      // Load all check-ins for stats - with error handling
-      try {
-        const { data: allCheckIns, error: allCheckInsError } = await supabase
-          .from('checkins')
-          .select('center_id')
-          .eq('parent_id', user.id);
-
-        if (!allCheckInsError && allCheckIns) {
-          const uniqueCenters = new Set(allCheckIns.map(c => c.center_id) || []);
-          
-          // Calculate most frequent centers
-          const centerCounts = allCheckIns.reduce((acc: any, checkIn) => {
-            acc[checkIn.center_id] = (acc[checkIn.center_id] || 0) + 1;
-            return acc;
-          }, {});
-
-          if (centerCounts && Object.keys(centerCounts).length > 0) {
-            const topCenterIds = Object.entries(centerCounts)
-              .sort(([, a]: any, [, b]: any) => b - a)
-              .slice(0, 3)
-              .map(([centerId]) => centerId);
-
-            try {
-              const { data: topCentersData } = await supabase
-                .from('centers')
-                .select('id, name, city, address')
-                .in('id', topCenterIds);
-
-              // Add visit counts to centers
-              const centersWithCounts = topCentersData?.map(center => ({
-                ...center,
-                visitCount: centerCounts[center.id],
-              })) || [];
-
-              setFrequentCenters(centersWithCounts);
-            } catch (err) {
-              // Silently handle - table may not exist yet
-              setFrequentCenters([]);
-            }
-          }
-
-          setStats(prev => ({
-            ...prev,
-            centersVisited: uniqueCenters.size,
-            totalCheckIns: allCheckIns.length,
-          }));
-        }
-      } catch (err) {
-        // Silently handle - table may not exist yet
-        setStats(prev => ({
-          ...prev,
-          centersVisited: 0,
-          totalCheckIns: 0,
-        }));
-      }
-
-      // Load unread notifications count
-      await loadNotificationCount();
-
-      // Load featured centers (2 centers for home screen)
-      try {
-        const { data: centersData, error: centersError } = await supabase
-          .from('centers')
-          .select('*')
-          .eq('is_verified', true)
-          .order('name')
-          .limit(2);
-
-        if (!centersError) {
-          setFeaturedCenters(centersData || []);
-        }
-      } catch (err) {
-        // Silently handle - table may not exist yet
-        setFeaturedCenters([]);
-      }
-    } catch (error) {
-      // Silently handle - show default values
-      setUserName('Parent');
-    }
-  };
+  }, [profile, parentStatus]);
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    await loadUserData();
-    setRefreshing(false);
+    await refreshData();
   };
 
   const getGreeting = () => {
@@ -381,21 +93,37 @@ export default function HomeScreen() {
           <TouchableOpacity 
             style={styles.iconButton}
             onPress={() => {
-              HapticFeedback.light();
-              router.push('/(tabs)/profile');
+              if (parentStatus?.isActive) {
+                HapticFeedback.light();
+                router.push('/(tabs)/profile');
+              }
             }}
+            disabled={!parentStatus?.isActive}
+            activeOpacity={parentStatus?.isActive ? 0.7 : 1}
           >
-            <Ionicons name="settings-outline" size={24} color={Colors.text} />
+            <Ionicons 
+              name="settings-outline" 
+              size={24} 
+              color={parentStatus?.isActive ? Colors.text : Colors.textMuted} 
+            />
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.notificationBadge}
             onPress={() => {
-              HapticFeedback.light();
-              setNotificationsVisible(true);
+              if (parentStatus?.isActive) {
+                HapticFeedback.light();
+                setNotificationsVisible(true);
+              }
             }}
+            disabled={!parentStatus?.isActive}
+            activeOpacity={parentStatus?.isActive ? 0.7 : 1}
           >
-            <Ionicons name="notifications-outline" size={24} color={Colors.text} />
-            {stats.unreadNotifications > 0 && (
+            <Ionicons 
+              name="notifications-outline" 
+              size={24} 
+              color={parentStatus?.isActive ? Colors.text : Colors.textMuted} 
+            />
+            {parentStatus?.isActive && stats.unreadNotifications > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{stats.unreadNotifications}</Text>
               </View>
@@ -415,46 +143,87 @@ export default function HomeScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
         showsVerticalScrollIndicator={false}
+        scrollEnabled={parentStatus?.isActive !== false}
+        style={parentStatus && !parentStatus.isActive ? styles.disabledScrollView : undefined}
       >
-        {/* Quick Access Icons */}
-        <View style={styles.quickAccessContainer}>
+        {/* Quick Access Icons - Show for all users, but disabled for inactive */}
+        <View style={[
+          styles.quickAccessContainer,
+          parentStatus && !parentStatus.isActive && styles.disabledContainer
+        ]}>
           <TouchableOpacity
             style={styles.quickAccessItem}
-            onPress={() => router.push('/(tabs)/centers')}
-            activeOpacity={0.7}
+            onPress={() => {
+              if (parentStatus?.isActive) {
+                router.push('/(tabs)/centers');
+              }
+            }}
+            disabled={!parentStatus?.isActive}
+            activeOpacity={parentStatus?.isActive ? 0.7 : 1}
           >
             <View style={[styles.quickAccessIcon, { backgroundColor: Colors.primary + '15' }]}>
-              <Ionicons name="business" size={28} color={Colors.primary} />
+              <Ionicons 
+                name="business" 
+                size={28} 
+                color={parentStatus?.isActive ? Colors.primary : Colors.textMuted} 
+              />
             </View>
-            <Text style={styles.quickAccessLabel}>Browse Centers</Text>
+            <Text style={[
+              styles.quickAccessLabel,
+              !parentStatus?.isActive && styles.disabledText
+            ]}>Browse Centers</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.quickAccessItem}
-            onPress={() => router.push('/children')}
-            activeOpacity={0.7}
+            onPress={() => {
+              if (parentStatus?.isActive) {
+                router.push('/children');
+              }
+            }}
+            disabled={!parentStatus?.isActive}
+            activeOpacity={parentStatus?.isActive ? 0.7 : 1}
           >
             <View style={[styles.quickAccessIcon, { backgroundColor: Colors.accent + '15' }]}>
-              <Ionicons name="people" size={28} color={Colors.accent} />
+              <Ionicons 
+                name="people" 
+                size={28} 
+                color={parentStatus?.isActive ? Colors.accent : Colors.textMuted} 
+              />
             </View>
-            <Text style={styles.quickAccessLabel}>My Children</Text>
+            <Text style={[
+              styles.quickAccessLabel,
+              !parentStatus?.isActive && styles.disabledText
+            ]}>My Children</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.quickAccessItem}
-            onPress={() => router.push('/access-logs')}
-            activeOpacity={0.7}
+            onPress={() => {
+              if (parentStatus?.isActive) {
+                router.push('/access-logs');
+              }
+            }}
+            disabled={!parentStatus?.isActive}
+            activeOpacity={parentStatus?.isActive ? 0.7 : 1}
           >
             <View style={[styles.quickAccessIcon, { backgroundColor: Colors.info + '15' }]}>
-              <Ionicons name="time" size={28} color={Colors.info} />
+              <Ionicons 
+                name="time" 
+                size={28} 
+                color={parentStatus?.isActive ? Colors.info : Colors.textMuted} 
+              />
             </View>
-            <Text style={styles.quickAccessLabel}>Activity</Text>
+            <Text style={[
+              styles.quickAccessLabel,
+              !parentStatus?.isActive && styles.disabledText
+            ]}>Activity</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Active Check-Out Card */}
+        {/* Active Check-Out Card - Show for all users, but disabled for inactive */}
         {activeCheckIn && (
-          <AnimatedCard variant="elevated" padding="large" style={[styles.quickActionCard, { borderLeftWidth: 4, borderLeftColor: Colors.warning }]} delay={0}>
+          <AnimatedCard variant="elevated" padding="large" style={[styles.quickActionCard, { borderLeftWidth: 4, borderLeftColor: Colors.warning }] as any} delay={0}>
             <View style={styles.quickActionContent}>
               <View style={[styles.quickActionIcon, { backgroundColor: Colors.warning + '15' }]}>
                 <Ionicons name="log-out" size={32} color={Colors.warning} />
@@ -474,46 +243,90 @@ export default function HomeScreen() {
             </View>
             <Button
               title="Check Out"
-              onPress={() => router.push({
-                pathname: '/check-out',
-                params: { checkInId: activeCheckIn.id }
-              })}
+              onPress={() => {
+                if (parentStatus?.isActive) {
+                  router.push({
+                    pathname: '/check-out',
+                    params: { checkInId: activeCheckIn.id }
+                  });
+                }
+              }}
               icon="log-out"
               size="medium"
               fullWidth
               variant="primary"
+              disabled={!parentStatus?.isActive}
             />
           </AnimatedCard>
         )}
 
-        {/* Quick Check-In Card */}
-        <AnimatedCard variant="elevated" padding="large" style={styles.quickActionCard} delay={activeCheckIn ? 100 : 0}>
+        {/* Quick Check-In Card - Show for all users, but disabled for inactive */}
+        <AnimatedCard 
+          variant="elevated" 
+          padding="large" 
+          style={[
+            styles.quickActionCard,
+            parentStatus && !parentStatus.isActive && styles.disabledCard
+          ]} 
+          delay={activeCheckIn ? 100 : 0}
+        >
           <View style={styles.quickActionContent}>
             <View style={styles.quickActionIcon}>
-              <Ionicons name="qr-code" size={32} color={Colors.primary} />
+              <Ionicons 
+                name="qr-code" 
+                size={32} 
+                color={parentStatus?.isActive ? Colors.primary : Colors.textMuted} 
+              />
             </View>
             <View style={styles.quickActionText}>
-              <Text style={styles.quickActionTitle}>Quick Check-In</Text>
-              <Text style={styles.quickActionSubtitle}>Scan QR code at daycare</Text>
+              <Text style={[
+                styles.quickActionTitle,
+                !parentStatus?.isActive && styles.disabledText
+              ]}>Quick Check-In</Text>
+              <Text style={[
+                styles.quickActionSubtitle,
+                !parentStatus?.isActive && styles.disabledText
+              ]}>Scan QR code at daycare</Text>
             </View>
           </View>
           <Button
             title="Scan Now"
-            onPress={() => router.push('/scan')}
+            onPress={() => {
+              if (parentStatus?.isActive) {
+                router.push('/scan');
+              }
+            }}
             icon="scan"
             size="medium"
             fullWidth
+            disabled={!parentStatus?.isActive}
           />
         </AnimatedCard>
 
-        {/* Browse Centers Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Browse Centers</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/centers')}>
-                <Text style={styles.seeAllText}>View More</Text>
-              </TouchableOpacity>
-            </View>
+        {/* Browse Centers Section - Show for all users, but disabled for inactive */}
+        <View style={[
+          styles.section,
+          parentStatus && !parentStatus.isActive && styles.disabledSection
+        ]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[
+              styles.sectionTitle,
+              !parentStatus?.isActive && styles.disabledText
+            ]}>Browse Centers</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                if (parentStatus?.isActive) {
+                  router.push('/(tabs)/centers');
+                }
+              }}
+              disabled={!parentStatus?.isActive}
+            >
+              <Text style={[
+                styles.seeAllText,
+                !parentStatus?.isActive && styles.disabledText
+              ]}>View More</Text>
+            </TouchableOpacity>
+          </View>
 
             {featuredCenters.length > 0 ? (
               featuredCenters.map((center) => (
@@ -521,7 +334,11 @@ export default function HomeScreen() {
                   key={center.id}
                   variant="outlined"
                   padding="medium"
-                  onPress={() => router.push(`/center-detail?id=${center.id}`)}
+                  onPress={() => {
+                    if (parentStatus?.isActive) {
+                      router.push(`/center-detail?id=${center.id}`);
+                    }
+                  }}
                   style={styles.centerCard}
                 >
                   <View style={styles.centerContent}>
@@ -547,14 +364,30 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* My Children Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>My Children</Text>
-              <TouchableOpacity onPress={() => router.push('/children')}>
-                <Text style={styles.seeAllText}>Manage</Text>
-              </TouchableOpacity>
-            </View>
+        {/* My Children Section - Show for all users, but disabled for inactive */}
+        <View style={[
+          styles.section,
+          parentStatus && !parentStatus.isActive && styles.disabledSection
+        ]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[
+              styles.sectionTitle,
+              !parentStatus?.isActive && styles.disabledText
+            ]}>My Children</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                if (parentStatus?.isActive) {
+                  router.push('/children');
+                }
+              }}
+              disabled={!parentStatus?.isActive}
+            >
+              <Text style={[
+                styles.seeAllText,
+                !parentStatus?.isActive && styles.disabledText
+              ]}>Manage</Text>
+            </TouchableOpacity>
+          </View>
 
             {children.length > 0 ? (
               children.map((child) => (
@@ -562,7 +395,11 @@ export default function HomeScreen() {
                   key={child.id}
                   variant="outlined"
                   padding="medium"
-                  onPress={() => router.push('/children')}
+                  onPress={() => {
+                    if (parentStatus?.isActive) {
+                      router.push('/children');
+                    }
+                  }}
                   style={styles.childCard}
                 >
                   <View style={styles.childCardContent}>
@@ -580,7 +417,16 @@ export default function HomeScreen() {
                 </Card>
               ))
             ) : (
-              <Card variant="outlined" padding="medium" onPress={() => router.push('/children/add')} style={styles.emptyCard}>
+              <Card 
+                variant="outlined" 
+                padding="medium" 
+                onPress={() => {
+                  if (parentStatus?.isActive) {
+                    router.push('/children/add');
+                  }
+                }} 
+                style={styles.emptyCard}
+              >
                 <View style={styles.emptyCardContent}>
                   <Ionicons name="add-circle-outline" size={32} color={Colors.textMuted} />
                   <Text style={styles.emptyCardText}>Add your first child</Text>
@@ -588,15 +434,32 @@ export default function HomeScreen() {
               </Card>
             )}
           </View>
+        )}
 
-          {/* Activity Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Activity</Text>
-              <TouchableOpacity onPress={() => router.push('/access-logs')}>
-                <Text style={styles.seeAllText}>View All</Text>
-              </TouchableOpacity>
-            </View>
+        {/* Activity Section - Show for all users, but disabled for inactive */}
+        <View style={[
+          styles.section,
+          parentStatus && !parentStatus.isActive && styles.disabledSection
+        ]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[
+              styles.sectionTitle,
+              !parentStatus?.isActive && styles.disabledText
+            ]}>Activity</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                if (parentStatus?.isActive) {
+                  router.push('/access-logs');
+                }
+              }}
+              disabled={!parentStatus?.isActive}
+            >
+              <Text style={[
+                styles.seeAllText,
+                !parentStatus?.isActive && styles.disabledText
+              ]}>View All</Text>
+            </TouchableOpacity>
+          </View>
 
             {recentCheckIns.length > 0 ? (
               recentCheckIns.map((checkIn) => {
@@ -635,7 +498,7 @@ export default function HomeScreen() {
                           </View>
                         </View>
                         <Text style={styles.activitySubtitle}>
-                          {checkIn.children?.name} • {new Date(checkIn.check_in_time).toLocaleDateString('en-US', { 
+                          {('name' in checkIn.children ? checkIn.children.name : `${checkIn.children.first_name} ${checkIn.children.last_name}`)} • {new Date(checkIn.check_in_time).toLocaleDateString('en-US', { 
                             month: 'short', 
                             day: 'numeric',
                             hour: 'numeric',
@@ -664,48 +527,63 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* Frequent Centers (if any) */}
-          {frequentCenters.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Your Favorite Centers</Text>
-              </View>
+        {/* Frequent Centers - Show for all users, but disabled for inactive */}
+        {frequentCenters.length > 0 && (
+          <View style={[
+            styles.section,
+            parentStatus && !parentStatus.isActive && styles.disabledSection
+          ]}>
+            <View style={styles.sectionHeader}>
+              <Text style={[
+                styles.sectionTitle,
+                !parentStatus?.isActive && styles.disabledText
+              ]}>Your Favorite Centers</Text>
+            </View>
 
-              {frequentCenters.map((center) => (
+            {frequentCenters.map((center) => (
                 <Card
                   key={center.id}
                   variant="outlined"
                   padding="medium"
-                  onPress={() => router.push(`/center-detail?id=${center.id}`)}
+                  onPress={() => {
+                    if (parentStatus?.isActive) {
+                      router.push(`/center-detail?id=${center.id}`);
+                    }
+                  }}
                   style={styles.centerCard}
                 >
                   <View style={styles.centerContent}>
                     <View style={[styles.centerIconSmall, { backgroundColor: Colors.primary + '15' }]}>
-                      <Ionicons name="business" size={20} color={Colors.primary} />
+                      <Ionicons 
+                        name="business" 
+                        size={20} 
+                        color={parentStatus?.isActive ? Colors.primary : Colors.textMuted} 
+                      />
                     </View>
-                    <View style={styles.centerInfo}>
-                      <Text style={styles.centerName}>{center.name}</Text>
-                      <Text style={styles.centerLocation}>
-                        <Ionicons name="location" size={12} color={Colors.textLight} /> {center.city}
-                      </Text>
-                    </View>
-                    <View style={styles.visitBadge}>
-                      <Text style={styles.visitCount}>{center.visitCount}</Text>
-                      <Text style={styles.visitLabel}>visits</Text>
-                    </View>
+                  <View style={styles.centerInfo}>
+                    <Text style={styles.centerName}>{center.name}</Text>
+                    <Text style={styles.centerLocation}>
+                      <Ionicons name="location" size={12} color={Colors.textLight} /> {center.city}
+                    </Text>
                   </View>
-                </Card>
-              ))}
-            </View>
-          )}
+                  <View style={styles.visitBadge}>
+                    <Text style={styles.visitCount}>{center.visitCount}</Text>
+                    <Text style={styles.visitLabel}>visits</Text>
+                  </View>
+                </View>
+              </Card>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       {/* Notifications Modal */}
       <NotificationsModal
         visible={notificationsVisible}
         onClose={() => setNotificationsVisible(false)}
-        onNotificationCountChange={(count) => {
-          setStats(prev => ({ ...prev, unreadNotifications: count }));
+        onNotificationCountChange={() => {
+          // Stats are managed by context, it will update automatically via realtime subscription
+          refreshStats();
         }}
       />
 
@@ -717,10 +595,49 @@ export default function HomeScreen() {
           userId={userId}
           onOrganizationSelected={() => {
             setOrganizationModalVisible(false);
-            loadUserData(); // Reload data after organization is selected
+            refreshData(); // Reload data after organization is selected
           }}
         />
       )}
+
+      {/* Account Status Modal Overlay - Shows for inactive or suspended accounts */}
+      <Modal
+        visible={parentStatus !== null && !parentStatus.isActive}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.inactiveModalContent}>
+            <View style={[
+              styles.inactiveModalIconContainer,
+              parentStatus?.status === 'suspended' && { backgroundColor: Colors.error + '15' }
+            ]}>
+              <Ionicons 
+                name={parentStatus?.status === 'suspended' ? 'ban' : 'information-circle'} 
+                size={64} 
+                color={parentStatus?.status === 'suspended' ? Colors.error : Colors.warning} 
+              />
+            </View>
+            <Text style={styles.inactiveModalTitle}>
+              {parentStatus?.status === 'suspended' ? 'Account Suspended' : 'Account Inactive'}
+            </Text>
+            <Text style={styles.inactiveModalMessage}>
+              {parentStatus?.status === 'suspended' 
+                ? 'Please contact your organisation administrator.'
+                : 'Your account is currently inactive. Please wait for the PostPart team to verify your details.'}
+            </Text>
+            {parentStatus?.status === 'inactive' && (
+              <View style={styles.inactiveModalInfo}>
+                <Ionicons name="time-outline" size={20} color={Colors.textLight} />
+                <Text style={styles.inactiveModalInfoText}>
+                  Your account is pending review. This usually takes 24 hours.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -1051,5 +968,99 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textMuted,
     textAlign: 'center',
+  },
+  inactiveBanner: {
+    marginBottom: Spacing.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.warning,
+    backgroundColor: Colors.warning + '10',
+  },
+  inactiveBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  inactiveBannerText: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  inactiveBannerTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  inactiveBannerMessage: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textLight,
+    lineHeight: Typography.lineHeight.normal * Typography.fontSize.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  inactiveModalContent: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    ...Shadows.large,
+  },
+  inactiveModalIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: BorderRadius.round,
+    backgroundColor: Colors.warning + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  inactiveModalTitle: {
+    fontSize: Typography.fontSize.xxl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.text,
+    marginBottom: Spacing.md,
+    textAlign: 'center',
+  },
+  inactiveModalMessage: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.textLight,
+    textAlign: 'center',
+    lineHeight: Typography.lineHeight.normal * Typography.fontSize.base,
+    marginBottom: Spacing.lg,
+  },
+  inactiveModalInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  inactiveModalInfoText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textLight,
+    lineHeight: Typography.lineHeight.normal * Typography.fontSize.sm,
+  },
+  disabledScrollView: {
+    opacity: 0.5,
+  },
+  disabledContainer: {
+    opacity: 0.5,
+  },
+  disabledSection: {
+    opacity: 0.5,
+  },
+  disabledCard: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    color: Colors.textMuted,
   },
 });
