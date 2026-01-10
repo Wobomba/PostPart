@@ -1,13 +1,43 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const supabaseUrl = 'https://etajqqnejfolsmslbsom.supabase.co';
 const supabaseAnonKey = 'sb_publishable_cYiDAK6i1o8iwn5nOtHezw_5x0QwZzb';
 
+// Platform-specific storage
+const getStorage = () => {
+  if (Platform.OS === 'web') {
+    // Use localStorage for web
+    return {
+      getItem: (key: string) => {
+        if (typeof window !== 'undefined') {
+          return Promise.resolve(localStorage.getItem(key));
+        }
+        return Promise.resolve(null);
+      },
+      setItem: (key: string, value: string) => {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(key, value);
+        }
+        return Promise.resolve();
+      },
+      removeItem: (key: string) => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(key);
+        }
+        return Promise.resolve();
+      },
+    };
+  }
+  // Use AsyncStorage for mobile
+  return AsyncStorage;
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: getStorage(),
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
@@ -21,7 +51,17 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     // This might be due to a refresh token error
     console.log('User signed out');
   }
+  
+  // Handle token refresh errors
+  if (event === 'TOKEN_REFRESHED') {
+    // Token was successfully refreshed
+    console.log('Token refreshed successfully');
+  }
 });
+
+// Note: Refresh token errors are handled gracefully throughout the app
+// If you see "refresh token not found" errors in LogBox, they are being caught
+// and the user will be signed out automatically to allow re-authentication
 
 /**
  * Safely get user with refresh token error handling

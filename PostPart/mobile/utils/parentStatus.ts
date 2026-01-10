@@ -26,7 +26,7 @@ export async function checkParentStatus(): Promise<ParentStatus> {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('status, full_name, organization_id, organizations(name)')
+      .select('status, full_name, organization_id, organizations(id, name, status)')
       .eq('id', user.id)
       .single();
 
@@ -39,12 +39,29 @@ export async function checkParentStatus(): Promise<ParentStatus> {
       };
     }
 
-    const isActive = profile.status === 'active';
+    // Check both parent status and organization status
+    // Organization status takes precedence: if organization is inactive/suspended, parent is automatically inactive/suspended
+    const organization = profile.organizations as any;
+    const orgStatus = organization?.status;
+    const parentStatus = profile.status as 'active' | 'inactive' | 'suspended';
+    
+    // Determine effective status: organization status takes precedence if it's inactive/suspended
+    // If organization is active, use parent's individual status
+    let effectiveStatus: 'active' | 'inactive' | 'suspended';
+    if (orgStatus && (orgStatus === 'inactive' || orgStatus === 'suspended')) {
+      // Organization is inactive/suspended, so parent is automatically inactive/suspended
+      effectiveStatus = orgStatus;
+    } else {
+      // Organization is active (or null), so use parent's individual status
+      effectiveStatus = parentStatus;
+    }
+    
+    const isActive = effectiveStatus === 'active';
 
     return {
       isActive,
-      status: profile.status as 'active' | 'inactive' | 'suspended',
-      message: !isActive ? getStatusMessage(profile.status) : undefined,
+      status: effectiveStatus,
+      message: !isActive ? getStatusMessage(effectiveStatus) : undefined,
     };
   } catch (error) {
     console.error('Error checking parent status:', error);

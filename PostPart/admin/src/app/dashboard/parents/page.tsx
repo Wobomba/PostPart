@@ -59,6 +59,7 @@ import type { Profile } from '../../../../../../../shared/types';
 
 interface ParentWithMetrics extends Profile {
   organization?: { id: string; name: string; status: string };
+  organization_name?: string; // Organization name entered by user (pending validation)
   childrenCount: number;
   checkInCount: number;
   lastCheckInDate: string | null;
@@ -168,7 +169,18 @@ export default function ParentsPage() {
     if (orgFilter) {
       setOrganizationFilter(orgFilter);
     }
-  }, [orgFilter]);
+    
+    // Check for query parameters
+    const hasOrgName = searchParams.get('has_org_name') === 'true';
+    const statusParam = searchParams.get('status');
+    
+    if (hasOrgName && statusParam === 'inactive') {
+      // Filter to show inactive parents with organization_name (pending review)
+      setStatusFilter('inactive');
+    } else if (statusParam) {
+      setStatusFilter(statusParam);
+    }
+  }, [orgFilter, searchParams]);
 
   const loadData = async () => {
     try {
@@ -346,12 +358,17 @@ export default function ParentsPage() {
     const matchesSearch =
       parent.full_name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
       parent.email?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      parent.organization?.name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+      parent.organization?.name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      (parent as any).organization_name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || parent.status === statusFilter;
     const matchesOrg = organizationFilter === 'all' || parent.organization_id === organizationFilter;
+    
+    // Filter for pending review (inactive with organization_name)
+    const hasOrgName = searchParams.get('has_org_name') === 'true';
+    const matchesPendingReview = !hasOrgName || ((parent as any).organization_name && parent.status === 'inactive');
 
-    return matchesSearch && matchesStatus && matchesOrg;
+    return matchesSearch && matchesStatus && matchesOrg && matchesPendingReview;
   });
 
   const getStatusColor = (status: string) => {
@@ -829,6 +846,13 @@ export default function ParentsPage() {
                             <BusinessIcon sx={{ fontSize: 16, color: '#64748b' }} />
                             <Typography variant="body2">
                               {parent.organization.name}
+                            </Typography>
+                          </Box>
+                        ) : parent.organization_name ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <BusinessIcon sx={{ fontSize: 16, color: '#FF9800' }} />
+                            <Typography variant="body2" sx={{ color: '#FF9800', fontStyle: 'italic' }}>
+                              {parent.organization_name} (Pending)
                             </Typography>
                           </Box>
                         ) : (

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -80,38 +80,29 @@ export default function RegisterScreen() {
       // Profile is automatically created by database trigger
       // No need to manually insert into profiles table
 
-      // Check if email confirmation is enabled
+      // Sign out the user if they were auto-logged in (email confirmation disabled)
       if (authData.session) {
-        // No email confirmation - user is logged in immediately
-        Alert.alert(
-          'Account Created!',
-          'Your account has been created successfully.',
-          [
-            {
-              text: 'Continue',
-              onPress: () => router.replace('/(tabs)/home'),
-            },
-          ]
-        );
-      } else {
-        // Email confirmation is enabled - show success message and navigate
-        const userEmail = formData.email.toLowerCase().trim();
-        
-        // Navigate to OTP verification screen
-        router.replace({
-          pathname: '/(auth)/verify-otp',
-          params: { email: userEmail },
-        });
-        
-        // Show alert after navigation starts
-        setTimeout(() => {
-          Alert.alert(
-            'Check Your Email! 📧',
-            `We sent an 8-digit verification code to ${userEmail}. Please enter it to verify your account.`,
-            [{ text: 'OK' }]
-          );
-        }, 100);
+        await supabase.auth.signOut();
       }
+
+      // Redirect to email verification screen
+      const userEmail = formData.email.toLowerCase().trim();
+      
+      Alert.alert(
+        'Account Created Successfully!',
+        'Please verify your email address to continue. We\'ve sent a verification code to your email.',
+        [
+          {
+            text: 'Verify Email',
+            onPress: () => {
+              router.replace({
+                pathname: '/(auth)/verify-otp',
+                params: { email: userEmail },
+              });
+            },
+          },
+        ]
+      );
     } catch (error: any) {
       console.error('Registration error:', error);
       Alert.alert('Registration Failed', error.message || 'Failed to create account. Please try again.');
@@ -199,11 +190,9 @@ export default function RegisterScreen() {
 
           <View style={styles.signInContainer}>
             <Text style={styles.signInText}>Already have an account? </Text>
-            <Button
-              title="Sign In"
-              onPress={() => router.push('/(auth)/login')}
-              variant="ghost"
-            />
+            <TouchableOpacity onPress={() => router.push('/(auth)/login')} activeOpacity={0.7}>
+              <Text style={styles.signInLink}>Sign In</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -225,6 +214,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   header: {
     alignItems: 'center',
@@ -263,14 +253,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+    flexWrap: 'wrap',
   },
   signInText: {
     fontSize: Typography.fontSize.base,
     color: Colors.textLight,
   },
+  signInLink: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.semibold,
+  },
   footer: {
-    marginTop: 'auto',
-    paddingTop: Spacing.xl,
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   footerText: {
     fontSize: Typography.fontSize.xs,

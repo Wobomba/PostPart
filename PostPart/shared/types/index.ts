@@ -26,8 +26,10 @@ export interface Profile {
   email: string;
   phone?: string;
   full_name: string;
-  organization_id: string;
+  organization_id?: string | null;
+  organization_name?: string | null; // Organization name entered by user (pending validation)
   status: 'active' | 'inactive' | 'suspended';
+  status_before_org_change?: string | null; // Stores original status before organization status change
   created_at: string;
   updated_at: string;
 }

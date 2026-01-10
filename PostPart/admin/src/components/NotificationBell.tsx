@@ -53,7 +53,26 @@ export default function NotificationBell() {
       setLoading(true);
       const actions: PendingAction[] = [];
 
-      // 1. Check for unassociated parents
+      // 1. Check for inactive parents pending review (with organization_name but inactive status)
+      const { count: pendingReviewParents } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'inactive')
+        .not('organization_name', 'is', null);
+
+      if (pendingReviewParents && pendingReviewParents > 0) {
+        actions.push({
+          id: 'pending_review_parents',
+          type: 'pending_approval',
+          title: 'New Accounts Pending Review',
+          description: `${pendingReviewParents} new account${pendingReviewParents > 1 ? 's' : ''} ${pendingReviewParents === 1 ? 'is' : 'are'} waiting for review and activation`,
+          count: pendingReviewParents,
+          route: '/dashboard/parents?status=inactive&has_org_name=true',
+          priority: 'high',
+        });
+      }
+
+      // 2. Check for unassociated parents (active but no organization)
       const { count: unassociatedParents } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
@@ -72,7 +91,7 @@ export default function NotificationBell() {
         });
       }
 
-      // 2. Check for inactive organisations
+      // 3. Check for inactive organisations
       const { count: inactiveOrgs } = await supabase
         .from('organizations')
         .select('*', { count: 'exact', head: true })
@@ -90,7 +109,7 @@ export default function NotificationBell() {
         });
       }
 
-      // 3. Check for unverified centres
+      // 4. Check for unverified centres
       const { count: unverifiedCentres } = await supabase
         .from('centers')
         .select('*', { count: 'exact', head: true })
@@ -108,7 +127,7 @@ export default function NotificationBell() {
         });
       }
 
-      // 4. Check for suspended parents
+      // 5. Check for suspended parents
       const { count: suspendedParents } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
