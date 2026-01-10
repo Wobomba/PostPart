@@ -27,33 +27,44 @@ function NotificationHandler() {
   const responseListener = useRef<Notifications.Subscription>();
 
   useEffect(() => {
-    // Handle notifications received while app is in foreground
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
-      // You can show a custom in-app notification here if needed
-    });
+    // Only set up notification listeners if notifications are available
+    // (not available in Expo Go or on web)
+    try {
+      // Handle notifications received while app is in foreground
+      notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+        console.log('Notification received:', notification);
+        // You can show a custom in-app notification here if needed
+      });
 
-    // Handle notification taps (when user taps on notification)
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification tapped:', response);
-      const data = response.notification.request.content.data;
-      
-      // Navigate to notification detail if notificationId is provided
-      if (data?.notificationId) {
-        // Only navigate if user is authenticated (not on auth screens)
-        const isAuthenticated = !segments.includes('(auth)');
-        if (isAuthenticated) {
-          router.push(`/notification-detail?id=${data.notificationId}`);
+      // Handle notification taps (when user taps on notification)
+      responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+        console.log('Notification tapped:', response);
+        const data = response.notification.request.content.data;
+        
+        // Navigate to notification detail if notificationId is provided
+        if (data?.notificationId) {
+          // Only navigate if user is authenticated (not on auth screens)
+          const isAuthenticated = !segments.includes('(auth)');
+          if (isAuthenticated) {
+            router.push(`/notification-detail?id=${data.notificationId}`);
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      // Silently fail if notifications aren't available (e.g., Expo Go, web)
+      console.log('Notification listeners not available:', error);
+    }
 
     return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+      try {
+        if (notificationListener.current) {
+          notificationListener.current.remove();
+        }
+        if (responseListener.current) {
+          responseListener.current.remove();
+        }
+      } catch (error) {
+        // Ignore errors when removing listeners
       }
     };
   }, [router, segments]);
