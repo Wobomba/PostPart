@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cache, CacheKeys } from '../utils/cache';
+import { registerForPushNotificationsAsync } from '../utils/pushNotifications';
 
 interface UserProfile {
   id: string;
@@ -420,6 +421,13 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
         const authName = user.user_metadata?.full_name || user.user_metadata?.name;
         if (authName && (userName === 'Parent' || !userName)) {
           setUserName(authName);
+        }
+        
+        // Register for push notifications
+        try {
+          await registerForPushNotificationsAsync();
+        } catch (error) {
+          console.error('Error registering for push notifications:', error);
         }
         
         // Load fresh data in background (this will update userName from profile if available)

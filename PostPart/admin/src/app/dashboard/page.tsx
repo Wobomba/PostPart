@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { supabase } from '../../../lib/supabase';
+import { useAdminData } from '../../contexts/AdminDataContext';
 import {
   Box,
   Card,
@@ -48,7 +49,16 @@ interface ActivityEvent {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
+  const {
+    dashboardStats,
+    activityTimeline,
+    loading,
+    refreshing,
+    refreshDashboardStats,
+    refreshActivityTimeline,
+  } = useAdminData();
+  
+  const stats = dashboardStats || {
     totalOrganizations: 0,
     totalParents: 0,
     totalCenters: 0,
@@ -63,266 +73,10 @@ export default function DashboardPage() {
     unassociatedParents: 0,
     topCenters: [] as any[],
     recentNotifications: [] as any[],
-  });
-  const [activityTimeline, setActivityTimeline] = useState<ActivityEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadStats();
-    loadActivityTimeline();
-
-    // Realtime subscription for check-ins (to update stats when new check-ins happen)
-    const checkinsChannel = supabase
-      .channel('dashboard_checkins_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'checkins' }, payload => {
-        console.log('Check-in change received on dashboard!', payload);
-        loadStats(); // Reload all stats
-      })
-      .subscribe();
-
-    // Realtime subscription for activity log
-    const activityChannel = supabase
-      .channel('dashboard_activity_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_log' }, payload => {
-        console.log('Activity log change received!', payload);
-        loadActivityTimeline(); // Reload activity timeline
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(checkinsChannel);
-      supabase.removeChannel(activityChannel);
-    };
-  }, []);
-
-  const loadStats = async () => {
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayEnd = new Date(today);
-      todayEnd.setHours(23, 59, 59, 999);
-      
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const twoWeeksAgo = new Date(today);
-      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-
-      // Load counts
-      const [
-        { count: orgCount },
-        { count: parentCount },
-        { count: centerCount },
-        { count: checkinCount },
-        { count: todayCheckinCount },
-        { count: todayNewParentCount },
-        { count: weeklyCheckinCount },
-        { count: lastWeekCheckinCount },
-        { count: unverifiedCenterCount },
-        { count: unassociatedParentCount },
-      ] = await Promise.all([
-        supabase.from('organizations').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('centers').select('*', { count: 'exact', head: true }),
-        supabase.from('checkins').select('*', { count: 'exact', head: true }),
-        supabase.from('checkins').select('*', { count: 'exact', head: true })
-          .gte('check_in_time', today.toISOString())
-          .lte('check_in_time', todayEnd.toISOString()),
-        supabase.from('profiles').select('*', { count: 'exact', head: true })
-          .gte('created_at', today.toISOString())
-          .lte('created_at', todayEnd.toISOString()),
-        supabase.from('checkins').select('*', { count: 'exact', head: true })
-          .gte('check_in_time', weekAgo.toISOString()),
-        supabase.from('checkins').select('*', { count: 'exact', head: true })
-          .gte('check_in_time', twoWeeksAgo.toISOString())
-          .lt('check_in_time', weekAgo.toISOString()),
-        supabase.from('centers').select('*', { count: 'exact', head: true })
-          .eq('is_verified', false),
-        supabase.from('profiles').select('*', { count: 'exact', head: true })
-          .is('organization_id', null),
-      ]);
-
-      // Load recent check-ins
-      const { data: recentData } = await supabase
-        .from('checkins')
-        .select(`
-          *,
-          center:centers(name),
-          parent:profiles(full_name),
-          child:children(first_name, last_name)
-        `)
-        .order('check_in_time', { ascending: false })
-        .limit(5);
-
-      // Load top centers by check-ins (last 30 days)
-      const thirtyDaysAgo = new Date(today);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      console.log('Loading top centers data for last 30 days...');
-      console.log('Date range:', thirtyDaysAgo.toISOString(), 'to', today.toISOString());
-      
-      const { data: topCentersData, error: topCentersError } = await supabase
-        .from('checkins')
-        .select(`
-          center_id,
-          centers!inner (
-            name,
-            is_verified
-          )
-        `)
-        .gte('check_in_time', thirtyDaysAgo.toISOString());
-
-      if (topCentersError) {
-        console.error('Error loading top centers data:', topCentersError);
-      } else {
-        console.log('Top centers raw data:', topCentersData);
-      }
-
-      // Aggregate top centers
-      const centerCounts: { [key: string]: { name: string; count: number; is_verified: boolean } } = {};
-      topCentersData?.forEach((checkin: any) => {
-        if (checkin.center_id && checkin.centers) {
-          const id = checkin.center_id;
-          if (!centerCounts[id]) {
-            centerCounts[id] = { 
-              name: checkin.centers.name, 
-              count: 0, 
-              is_verified: checkin.centers.is_verified 
-            };
-          }
-          centerCounts[id].count += 1;
-        }
-      });
-      
-      console.log('Center counts aggregated:', centerCounts);
-      
-      const topCenters = Object.values(centerCounts)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5);
-      
-      console.log('Top 5 centers:', topCenters);
-
-      // Get unique centers with check-ins today
-      const { data: todayCheckins } = await supabase
-        .from('checkins')
-        .select('center_id')
-        .gte('check_in_time', today.toISOString())
-        .lte('check_in_time', todayEnd.toISOString());
-      
-      const uniqueCentersToday = new Set(todayCheckins?.map(c => c.center_id).filter(Boolean) || []);
-
-      // Load recent notifications
-      const { data: notificationsData } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      setStats({
-        totalOrganizations: orgCount || 0,
-        totalParents: parentCount || 0,
-        totalCenters: centerCount || 0,
-        totalCheckins: checkinCount || 0,
-        recentCheckins: recentData || [],
-        todayCheckins: todayCheckinCount || 0,
-        todayNewParents: todayNewParentCount || 0,
-        activeCentersToday: uniqueCentersToday.size,
-        weeklyCheckins: weeklyCheckinCount || 0,
-        lastWeekCheckins: lastWeekCheckinCount || 0,
-        unverifiedCenters: unverifiedCenterCount || 0,
-        unassociatedParents: unassociatedParentCount || 0,
-        topCenters: topCenters,
-        recentNotifications: notificationsData || [],
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    } finally {
-      setLoading(false);
-    }
   };
 
-  const loadActivityTimeline = async () => {
-    try {
-      const events: ActivityEvent[] = [];
-
-      // Get activities from activity_log table
-      const { data: activityLogs } = await supabase
-        .from('activity_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(30);
-
-      if (activityLogs) {
-        activityLogs.forEach((log: any) => {
-          events.push({
-            id: log.id,
-            type: log.activity_type,
-            organizationId: log.related_entity_type === 'organisation' ? log.related_entity_id : undefined,
-            organizationName: log.related_entity_type === 'organisation' ? log.related_entity_name : undefined,
-            parentName: log.entity_type === 'parent' ? log.entity_name : log.related_entity_name || 'System',
-            message: log.description,
-            timestamp: log.created_at,
-          });
-        });
-      }
-
-      // Get recent check-ins (last 20) with parent and organisation info
-      const { data: recentCheckIns } = await supabase
-        .from('checkins')
-        .select(`
-          id,
-          check_in_time,
-          check_out_time,
-          parent_id,
-          profiles!inner(
-            organization_id,
-            full_name,
-            organizations(id, name)
-          )
-        `)
-        .order('check_in_time', { ascending: false })
-        .limit(20);
-
-      if (recentCheckIns) {
-        recentCheckIns.forEach((checkin: any) => {
-          const profile = Array.isArray(checkin.profiles) ? checkin.profiles[0] : checkin.profiles;
-          const org = Array.isArray(profile?.organizations) ? profile.organizations[0] : profile?.organizations;
-          
-          if (profile) {
-            events.push({
-              id: `checkin-${checkin.id}`,
-              type: 'checkin',
-              organizationId: org?.id,
-              organizationName: org?.name,
-              parentName: profile.full_name,
-              message: checkin.check_out_time ? `Check-in and check-out completed` : `Check-in completed`,
-              timestamp: checkin.check_in_time,
-            });
-            
-            // Add check-out event if exists
-            if (checkin.check_out_time) {
-              events.push({
-                id: `checkout-${checkin.id}`,
-                type: 'checkout',
-                organizationId: org?.id,
-                organizationName: org?.name,
-                parentName: profile.full_name,
-                message: `Check-out completed`,
-                timestamp: checkin.check_out_time,
-              });
-            }
-          }
-        });
-      }
-
-      // Sort by timestamp (most recent first)
-      events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      
-      setActivityTimeline(events.slice(0, 10)); // Keep only top 10 for dashboard
-    } catch (error) {
-      console.error('Error loading activity timeline:', error);
-      setActivityTimeline([]);
-    }
-  };
+  // Context handles initial load and realtime subscriptions
+  // No need for additional useEffect here
 
   const getActivityIcon = (type: string) => {
     switch (type) {

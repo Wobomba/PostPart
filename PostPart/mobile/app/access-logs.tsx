@@ -7,6 +7,7 @@ import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
 import { supabase } from '../lib/supabase';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../constants/theme';
+import { checkParentStatus } from '../utils/parentStatus';
 import type { AccessLogSummary } from '../../../shared/types';
 
 export default function AccessLogsScreen() {
@@ -18,6 +19,13 @@ export default function AccessLogsScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const checkStatus = async () => {
+      const status = await checkParentStatus();
+      if (!status.isActive) {
+        router.replace('/(tabs)/home');
+      }
+    };
+    checkStatus();
     loadAccessLogs();
   }, []);
 

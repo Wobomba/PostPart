@@ -1,0 +1,12 @@
+DATABASE_URL: postgresql://postgres:rvyYdGMWDLVksXGmjimvvlQtekbrrPEi@postgres.railway.internal:5432/railway
+PGDATA: postgresql://postgres:rvyYdGMWDLVksXGmjimvvlQtekbrrPEi@postgres.railway.internal:5432/railway
+PGDATABASE: railway
+PGHOST: postgres.railway.internal
+PGPASSWORD: rvyYdGMWDLVksXGmjimvvlQtekbrrPEi
+PGPORT: 5432
+PGUSER: postgres
+POSTGRES_DB: railway
+POSTGRES_PASSWORD: rvyYdGMWDLVksXGmjimvvlQtekbrrPEi
+POSTGRES_USER: postgres
+RAILWAY_DEPLOYMENT_DRAINING_SECONDS: 60
+SSL_CERT_DAYS: 820

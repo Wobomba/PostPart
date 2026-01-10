@@ -59,18 +59,9 @@ export default function SplashScreen() {
       // Delay for splash screen effect
       setTimeout(async () => {
         if (session) {
-          // Check parent status before allowing access
-          const status = await checkParentStatus();
-          
-          if (!status.isActive) {
-            // Parent is inactive or suspended - show alert and redirect to login
-            showStatusAlert(status, () => {
-              supabase.auth.signOut();
-              router.replace('/(auth)/welcome');
-            });
-          } else {
-            router.replace('/(tabs)/home');
-          }
+          // Allow all authenticated users to access home
+          // Inactive users will see a message on the home screen
+          router.replace('/(tabs)/home');
         } else {
           router.replace('/(auth)/welcome');
         }

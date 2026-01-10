@@ -16,6 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/Card';
 import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { checkParentStatus } from '../../utils/parentStatus';
 import type { Center } from '../../../shared/types';
 
 const SEARCH_HISTORY_KEY = '@postpart_center_search_history';
@@ -30,6 +31,16 @@ export default function CentersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      const status = await checkParentStatus();
+      if (!status.isActive) {
+        router.replace('/(tabs)/home');
+      }
+    };
+    checkStatus();
+  }, []);
 
   useEffect(() => {
     loadCenters();

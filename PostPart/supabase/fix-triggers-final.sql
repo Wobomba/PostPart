@@ -135,3 +135,10 @@ GRANT SELECT, INSERT ON profiles TO authenticated, anon;
 
 
 
+
+
+
+
+
+
+

@@ -15,9 +15,23 @@ export default function ScanScreen() {
   const [scanned, setScanned] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  useEffect(() => {
+    const checkStatus = async () => {
+      const status = await checkParentStatus();
+      if (!status.isActive) {
+        Alert.alert(
+          'Account Inactive',
+          status.message || 'Your account is currently inactive. Please contact your organization administrator for assistance.',
+          [{ text: 'OK', onPress: () => router.replace('/(tabs)/home') }]
+        );
+      }
+    };
+    checkStatus();
+  }, []);
+
   const verifyCanCheckIn = async () => {
-    const canCheckIn = await checkParentStatus();
-    return canCheckIn;
+    const status = await checkParentStatus();
+    return status.isActive;
   };
 
   if (!permission) {

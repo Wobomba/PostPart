@@ -345,7 +345,7 @@ export default function BulkNotificationsPage() {
         for (const chunk of parentChunks) {
           const { data: activeParents, error: chunkError } = await supabase
             .from('profiles')
-            .select('id')
+            .select('id, push_token')
             .eq('status', 'active')
             .in('id', chunk);
 
@@ -375,7 +375,7 @@ export default function BulkNotificationsPage() {
         // Original logic for other target types
         let parentsQuery = supabase
           .from('profiles')
-          .select('id')
+          .select('id, push_token')
           .eq('status', 'active');
 
         if (formData.target_type === 'organization' && formData.target_id) {
@@ -387,6 +387,37 @@ export default function BulkNotificationsPage() {
         const { data: parentsData, error: queryError } = await parentsQuery;
         if (queryError) throw queryError;
         parents = parentsData || [];
+      }
+
+      // Get push tokens for parents (for checked_in, we need to fetch them separately)
+      let pushTokens: string[] = [];
+      if (formData.target_type === 'checked_in') {
+        // Fetch push tokens for checked-in parents
+        const parentIds = parents.map(p => p.id);
+        if (parentIds.length > 0) {
+          const chunkSize = 1000;
+          const parentChunks: string[][] = [];
+          for (let i = 0; i < parentIds.length; i += chunkSize) {
+            parentChunks.push(parentIds.slice(i, i + chunkSize));
+          }
+
+          for (const chunk of parentChunks) {
+            const { data: parentsWithTokens } = await supabase
+              .from('profiles')
+              .select('push_token')
+              .in('id', chunk)
+              .not('push_token', 'is', null);
+
+            if (parentsWithTokens) {
+              pushTokens.push(...parentsWithTokens.map(p => p.push_token).filter(Boolean));
+            }
+          }
+        }
+      } else {
+        // For other target types, we already have push_token in the query
+        pushTokens = parents
+          .map((p: any) => p.push_token)
+          .filter((token: string | null) => token && token.trim() !== '');
       }
 
       // Create parent_notifications entries
@@ -448,6 +479,41 @@ export default function BulkNotificationsPage() {
         setError('No parents found to send notifications to');
         setSending(false);
         return;
+      }
+
+      // Send push notifications
+      if (pushTokens.length > 0) {
+        try {
+          console.log(`Sending push notifications to ${pushTokens.length} devices...`);
+          const pushResponse = await fetch('/api/push-notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              pushTokens,
+              title: formData.title,
+              message: formData.message,
+              data: {
+                notificationId: notification.id,
+                type: formData.type,
+                priority: formData.priority,
+              },
+            }),
+          });
+
+          if (pushResponse.ok) {
+            const pushResult = await pushResponse.json();
+            console.log(`Push notifications sent: ${pushResult.sent} successful, ${pushResult.failed} failed`);
+          } else {
+            console.warn('Failed to send push notifications, but in-app notifications were created');
+          }
+        } catch (pushError) {
+          console.error('Error sending push notifications:', pushError);
+          // Don't fail the entire operation if push notifications fail
+        }
+      } else {
+        console.log('No push tokens available, skipping push notifications');
       }
 
       // Log activity

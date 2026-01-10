@@ -15,6 +15,8 @@ import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/Card';
 import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
+import { checkParentStatus } from '../../utils/parentStatus';
+import { useUserData } from '../../contexts/UserDataContext';
 
 interface Child {
   id: string;
@@ -29,45 +31,36 @@ interface Child {
 export default function ChildrenManagementScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  
+  // Get data from context
+  const {
+    children,
+    refreshing,
+    refreshChildren,
+  } = useUserData();
 
   useEffect(() => {
-    loadChildren();
+    const checkStatus = async () => {
+      const status = await checkParentStatus();
+      if (!status.isActive) {
+        router.replace('/(tabs)/home');
+      }
+    };
+    checkStatus();
+    // Children are already loaded from context, just set loading to false
+    setLoading(false);
   }, []);
 
   // Reload children when screen comes into focus (e.g., after editing)
   useFocusEffect(
     React.useCallback(() => {
-      loadChildren();
-    }, [])
+      refreshChildren();
+    }, [refreshChildren])
   );
 
-  const loadChildren = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('children')
-        .select('*')
-        .eq('parent_id', user.id)
-        .order('date_of_birth', { ascending: false });
-
-      if (error) throw error;
-      setChildren(data || []);
-    } catch (error) {
-      console.error('Error loading children:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const onRefresh = async () => {
-    setRefreshing(true);
-    await loadChildren();
-    setRefreshing(false);
+    await refreshChildren();
   };
 
   const calculateAge = (dateOfBirth: string) => {

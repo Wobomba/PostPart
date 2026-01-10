@@ -134,7 +134,10 @@ export default function HomeScreen() {
 
       {/* Scrollable Content */}
       <ScrollView
-        style={styles.scrollView}
+        style={[
+          styles.scrollView,
+          parentStatus && !parentStatus.isActive && styles.disabledScrollView
+        ]}
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: Spacing.xxxl + insets.bottom },
@@ -144,7 +147,6 @@ export default function HomeScreen() {
         }
         showsVerticalScrollIndicator={false}
         scrollEnabled={parentStatus?.isActive !== false}
-        style={parentStatus && !parentStatus.isActive ? styles.disabledScrollView : undefined}
       >
         {/* Quick Access Icons - Show for all users, but disabled for inactive */}
         <View style={[
@@ -562,9 +564,10 @@ export default function HomeScreen() {
                     </View>
                   <View style={styles.centerInfo}>
                     <Text style={styles.centerName}>{center.name}</Text>
-                    <Text style={styles.centerLocation}>
-                      <Ionicons name="location" size={12} color={Colors.textLight} /> {center.city}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="location" size={12} color={Colors.textLight} />
+                      <Text style={styles.centerLocation}> {center.city}</Text>
+                    </View>
                   </View>
                   <View style={styles.visitBadge}>
                     <Text style={styles.visitCount}>{center.visitCount}</Text>

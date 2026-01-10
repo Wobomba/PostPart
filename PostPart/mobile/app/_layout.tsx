@@ -3,13 +3,19 @@ import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
 import { UserDataProvider } from '../contexts/UserDataContext';
 
-// Suppress refresh token errors in LogBox - we handle them gracefully
+// Suppress errors in LogBox - we handle them gracefully
 LogBox.ignoreLogs([
   'refresh token',
   'Refresh Token',
   'refresh_token',
   'refresh token not found',
   'Invalid refresh token',
+  'expo-notifications',
+  'Expo Go',
+  'android push notifications',
+  'remote notifications',
+  'was removed from Expo Go',
+  'Use a development build',
 ]);
 
 export default function RootLayout() {

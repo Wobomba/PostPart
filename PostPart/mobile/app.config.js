@@ -47,6 +47,13 @@ module.exports = {
           cameraPermission: "Allow PostPart to access your camera to take profile photos."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/postpart-logo.png",
+          color: "#E91E63"
+        }
+      ],
       "expo-router"
     ],
     experiments: {

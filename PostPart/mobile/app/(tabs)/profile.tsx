@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/Card';
 import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/theme';
+import { useUserData } from '../../contexts/UserDataContext';
 
 interface Child {
   id: string;
@@ -27,66 +28,26 @@ interface Child {
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [refreshing, setRefreshing] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [stats, setStats] = useState({
-    totalCheckIns: 0,
-    centersVisited: 0,
-  });
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  
+  // Get data from context
+  const {
+    profile,
+    children,
+    stats,
+    refreshing,
+    refreshData,
+  } = useUserData();
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  // Reload profile when screen comes into focus
+  // Refresh when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      loadProfile();
-    }, [])
+      refreshData();
+    }, [refreshData])
   );
 
-  const loadProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      const { data: childrenData } = await supabase
-        .from('children')
-        .select('*')
-        .eq('parent_id', user.id)
-        .order('date_of_birth', { ascending: false });
-
-      // Load stats
-      const { data: checkIns } = await supabase
-        .from('checkins')
-        .select('center_id')
-        .eq('parent_id', user.id);
-
-      const uniqueCenters = new Set(checkIns?.map(c => c.center_id) || []);
-
-      setProfile(profileData);
-      setChildren(childrenData || []);
-      setStats({
-        totalCheckIns: checkIns?.length || 0,
-        centersVisited: uniqueCenters.size,
-      });
-    } catch (error) {
-      // Silently handle - tables may not exist yet
-    }
-  };
-
   const onRefresh = async () => {
-    setRefreshing(true);
-    await loadProfile();
-    setRefreshing(false);
+    await refreshData();
   };
 
   const getInitials = (name: string) => {
