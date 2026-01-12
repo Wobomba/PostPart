@@ -1,0 +1,54 @@
+# Dependencies (EAS handles these separately)
+node_modules/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Testing
+tests/
+playwright.config.ts
+**/*.spec.ts
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.tsx
+
+# Documentation
+*.md
+README*
+docs/
+*.mdx
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.log
+
+# Build artifacts
+dist/
+build/
+.expo/
+.expo-shared/
+
+# Cache
+.cache/
+*.cache
+.npm/
+.yarn/
+
+# Environment files (should use EAS secrets)
+.env
+.env.local
+.env.*.local
+
+# Misc
+*.orig
+*.bak
+*.tmp
+
+

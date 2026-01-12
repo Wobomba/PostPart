@@ -78,7 +78,22 @@ export default function RegisterScreen() {
       if (signUpError) throw signUpError;
 
       // Profile is automatically created by database trigger
-      // No need to manually insert into profiles table
+      // However, we should ensure the name is synced if the trigger didn't catch it
+      // This handles cases where the trigger runs before metadata is available
+      if (authData.user?.id) {
+        try {
+          // Small delay to ensure trigger has run
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Sync name to profile to ensure it's set even if trigger missed it
+          const { syncAuthToProfile } = await import('../../utils/profile');
+          await syncAuthToProfile(authData.user.id);
+          console.log('Synced name to profile after registration');
+        } catch (syncError) {
+          console.warn('Error syncing name after registration:', syncError);
+          // Continue anyway - will sync on login/OTP verification
+        }
+      }
 
       // Sign out the user if they were auto-logged in (email confirmation disabled)
       if (authData.session) {

@@ -16,7 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/Card';
 import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import { checkParentStatus } from '../../utils/parentStatus';
+import { checkParentStatus, ParentStatus } from '../../utils/parentStatus';
 import type { Center } from '../../../shared/types';
 
 const SEARCH_HISTORY_KEY = '@postpart_center_search_history';
@@ -32,12 +32,13 @@ export default function CentersScreen() {
   const [loading, setLoading] = useState(true);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
+  const [parentStatus, setParentStatus] = useState<ParentStatus | null>(null);
+
   useEffect(() => {
     const checkStatus = async () => {
       const status = await checkParentStatus();
-      if (!status.isActive) {
-        router.replace('/(tabs)/home');
-      }
+      setParentStatus(status);
+      // Don't redirect - allow viewing but disable interactions
     };
     checkStatus();
   }, []);
@@ -169,8 +170,15 @@ export default function CentersScreen() {
     <Card
       variant="default"
       padding="medium"
-      onPress={() => router.push(`/center-detail?id=${item.id}`)}
-      style={styles.centerCard}
+      onPress={() => {
+        if (parentStatus?.isActive) {
+          router.push(`/center-detail?id=${item.id}`);
+        }
+      }}
+      style={[
+        styles.centerCard,
+        !parentStatus?.isActive && styles.disabledCard
+      ]}
     >
       <View style={styles.centerHeader}>
         <View style={styles.centerIcon}>
@@ -335,10 +343,14 @@ export default function CentersScreen() {
           styles.listContent,
           { paddingBottom: Spacing.xxxl + insets.bottom },
         ]}
-        style={styles.list}
+        style={[
+          styles.list,
+          !parentStatus?.isActive && styles.disabledList
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
+        scrollEnabled={parentStatus?.isActive !== false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="business-outline" size={64} color={Colors.textMuted} />
@@ -559,5 +571,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textLight,
     textAlign: 'center',
+  },
+  disabledCard: {
+    opacity: 0.5,
+  },
+  disabledList: {
+    opacity: 0.5,
   },
 });

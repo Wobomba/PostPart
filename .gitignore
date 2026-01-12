@@ -1,0 +1,43 @@
+# Exclude all directories except PostPart
+/*
+!/PostPart/
+
+# Exclude unrelated projects
+cell-sense*/
+modern/
+V_8/
+*.zip
+*.pdf
+creds-*.txt
+me/
+AGENDA*.pdf
+
+# Exclude large files
+*.AppImage
+*.AppImage.zs-old
+**/security-awareness-everywhere.zip
+**/*.zip
+Final-OpenAI/
+
+# Dependencies (should already be in PostPart/.gitignore but adding here for safety)
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+**/.expo/
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+

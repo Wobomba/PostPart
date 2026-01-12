@@ -19,8 +19,6 @@ export default function WelcomeScreen() {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.brandName}>POSTPART</Text>
-          <Text style={styles.tagline}>WELL MAMAS, WELL BABIES</Text>
         </View>
 
         {/* Features */}
@@ -92,26 +90,11 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.xxxl,
+    marginBottom: Spacing.xl,
   },
   logo: {
-    width: 100,
-    height: 100,
-    marginBottom: Spacing.lg,
-  },
-  brandName: {
-    fontSize: Typography.fontSize.huge,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.primary, // Pink color to match logo
-    marginBottom: Spacing.xs,
-    letterSpacing: 1,
-  },
-  tagline: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text, // Black text to match branding
-    textAlign: 'center',
-    fontWeight: Typography.fontWeight.semibold,
-    letterSpacing: 0.5,
+    width: 240,
+    height: 240,
   },
   features: {
     gap: Spacing.lg,

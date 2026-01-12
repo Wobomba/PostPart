@@ -63,7 +63,12 @@ export const getUserDisplayName = async (userId: string): Promise<string> => {
       .from('profiles')
       .select('full_name')
       .eq('id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle to handle case where profile doesn't exist yet
+
+    // PGRST116 means "no rows found" - profile doesn't exist yet, which is OK
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.warn('Error fetching profile for display name:', profileError);
+    }
 
     if (!profileError && profile?.full_name) {
       return profile.full_name;
@@ -88,49 +93,62 @@ export const getUserDisplayName = async (userId: string): Promise<string> => {
 
 /**
  * Syncs auth metadata to profiles table
- * Useful when profile is created after registration
+ * Useful when profile is created after registration or when name is missing
  */
 export const syncAuthToProfile = async (userId: string) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: 'No user found' };
+    if (!user || user.id !== userId) return { success: false, error: 'No user found' };
 
     const authName = user.user_metadata?.full_name || user.user_metadata?.name;
     const authEmail = user.email;
 
-    // Check if profile exists
-    const { data: existingProfile } = await supabase
+    // Check if profile exists and get current full_name
+    const { data: existingProfile, error: checkError } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, full_name')
       .eq('id', userId)
-      .single();
+      .maybeSingle(); // Use maybeSingle to handle case where profile doesn't exist yet
 
-    if (existingProfile) {
-      // Update existing profile with auth data
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: authName || null,
-          email: authEmail || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+    // If there's an error other than "no rows found", log it
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.warn('Error checking existing profile:', checkError);
+    }
 
-      if (error) {
-        return { success: false, error: error.message };
-      }
-    } else {
-      // Create profile from auth data
-      const { error } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          full_name: authName || null,
-          email: authEmail || null,
-        });
+    // Only sync if auth has name and profile doesn't have it (null, undefined, or empty string), or profile doesn't exist
+    const profileHasName = existingProfile?.full_name && existingProfile.full_name.trim() !== '';
+    const needsSync = !existingProfile || (!profileHasName && authName);
 
-      if (error) {
-        return { success: false, error: error.message };
+    // Always sync if we have a name in auth metadata and profile doesn't have it
+    if (needsSync && authName && authName.trim() !== '') {
+      if (existingProfile) {
+        // Update existing profile with auth data (only if profile doesn't have full_name or it's empty)
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            full_name: authName.trim(),
+            email: authEmail || existingProfile.email || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
+        console.log('Synced full_name from auth metadata to profile:', authName.trim());
+      } else {
+        // Create profile from auth data
+        const { error } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            full_name: authName,
+            email: authEmail || null,
+          });
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
       }
     }
 

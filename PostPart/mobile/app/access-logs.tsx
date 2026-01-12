@@ -7,7 +7,7 @@ import { Card } from '../components/Card';
 import { Screen } from '../components/Screen';
 import { supabase } from '../lib/supabase';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../constants/theme';
-import { checkParentStatus } from '../utils/parentStatus';
+import { checkParentStatus, ParentStatus } from '../utils/parentStatus';
 import type { AccessLogSummary } from '../../../shared/types';
 
 export default function AccessLogsScreen() {
@@ -18,12 +18,13 @@ export default function AccessLogsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const [parentStatus, setParentStatus] = useState<ParentStatus | null>(null);
+
   useEffect(() => {
     const checkStatus = async () => {
       const status = await checkParentStatus();
-      if (!status.isActive) {
-        router.replace('/(tabs)/home');
-      }
+      setParentStatus(status);
+      // Don't redirect - allow viewing but disable interactions
     };
     checkStatus();
     loadAccessLogs();
@@ -87,13 +88,15 @@ export default function AccessLogsScreen() {
   };
 
   const handleLogPress = (log: AccessLogSummary) => {
-    router.push({
-      pathname: '/access-logs-detail',
-      params: {
-        centerId: log.center_id,
-        centerName: log.center_name,
-      },
-    });
+    if (parentStatus?.isActive) {
+      router.push({
+        pathname: '/access-logs-detail',
+        params: {
+          centerId: log.center_id,
+          centerName: log.center_name,
+        },
+      });
+    }
   };
 
   const renderLogCard = ({ item }: { item: AccessLogSummary }) => (
@@ -101,7 +104,10 @@ export default function AccessLogsScreen() {
       variant="default"
       padding="medium"
       onPress={() => handleLogPress(item)}
-      style={styles.logCard}
+      style={[
+        styles.logCard,
+        !parentStatus?.isActive && styles.disabledCard
+      ]}
     >
       <View style={styles.logHeader}>
         <View style={styles.logIconContainer}>
@@ -178,7 +184,10 @@ export default function AccessLogsScreen() {
         data={logs}
         renderItem={renderLogCard}
         keyExtractor={(item) => item.center_id}
-        style={styles.list}
+        style={[
+          styles.list,
+          !parentStatus?.isActive && styles.disabledList
+        ]}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: Spacing.xxxl + insets.bottom },
@@ -186,6 +195,7 @@ export default function AccessLogsScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
+        scrollEnabled={parentStatus?.isActive !== false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color={Colors.textMuted} />
@@ -331,6 +341,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textLight,
     textAlign: 'center',
+  },
+  disabledCard: {
+    opacity: 0.5,
+  },
+  disabledList: {
+    opacity: 0.5,
   },
 });
 

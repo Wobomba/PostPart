@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { supabase } from '../../lib/supabase';
+import { syncAuthToProfile } from '../../utils/profile';
 import { Colors, Typography, Spacing, BorderRadius, Layout } from '../../constants/theme';
 
 export default function OrganizationScreen() {
@@ -28,11 +29,37 @@ export default function OrganizationScreen() {
       }
 
       // Check if user already has an organization or organization name
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('organization_id, organization_name')
+        .select('organization_id, organization_name, full_name')
         .eq('id', user.id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to handle case where profile doesn't exist yet
+
+      // If profile doesn't exist, try to create it from auth metadata
+      if (profileError && profileError.code === 'PGRST116') {
+        // Profile doesn't exist, create it from auth metadata
+        const authName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email || '',
+            full_name: authName,
+          });
+        
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+        }
+      } else if (profile && !profile.full_name) {
+        // Profile exists but no full_name, sync from auth metadata
+        const authName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+        if (authName) {
+          await supabase
+            .from('profiles')
+            .update({ full_name: authName })
+            .eq('id', user.id);
+        }
+      }
 
       if (profile?.organization_id || profile?.organization_name) {
         // User already has organization or has entered organization name, redirect to home
@@ -76,6 +103,10 @@ export default function OrganizationScreen() {
         .ilike('name', organizationName.trim())
         .single();
 
+      // Ensure profile exists and has full_name before updating
+      // Sync auth metadata to profile to ensure name is set
+      await syncAuthToProfile(user.id);
+
       // Update user profile with organization name (and organization_id if it exists)
       // Set status to inactive for admin validation
       const updateData: {
@@ -108,8 +139,10 @@ export default function OrganizationScreen() {
         [
           {
             text: 'OK',
-            onPress: () => {
-              // Redirect to home screen
+            onPress: async () => {
+              // Small delay to ensure profile update is committed
+              await new Promise(resolve => setTimeout(resolve, 500));
+              // Redirect to home screen - UserDataContext will refresh on focus
               router.replace('/(tabs)/home');
             },
           },

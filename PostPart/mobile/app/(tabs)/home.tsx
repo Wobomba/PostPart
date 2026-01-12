@@ -49,16 +49,43 @@ export default function HomeScreen() {
   const userId = user?.id || null;
 
   // Refresh data when screen comes into focus (e.g., after checkout)
+  // This ensures data is fresh when user returns to the screen, especially after account activation
   useFocusEffect(
     React.useCallback(() => {
-      refreshData();
-      checkStatus();
-    }, [refreshData])
+      console.log('📱 Home screen focused, refreshing data and checking status...');
+      // Always refresh data when screen comes into focus
+      // This is critical for catching updates that happened while user was away
+      const refresh = async () => {
+        await refreshData();
+        await checkStatus();
+        // If user is active but we don't have data, force another refresh
+        // This handles cases where activation happened while app was in background
+        const status = await checkParentStatus();
+        if (status?.isActive && profile?.status === 'active') {
+          // Double-check we have data after a short delay
+          setTimeout(async () => {
+            await refreshData();
+            await checkStatus();
+          }, 1000);
+        }
+      };
+      refresh();
+    }, [refreshData, profile?.status])
   );
 
   const checkStatus = async () => {
-    const status = await checkParentStatus();
-    setParentStatus(status);
+    try {
+      const status = await checkParentStatus();
+      console.log('Home screen - Status check result:', {
+        isActive: status.isActive,
+        status: status.status,
+        message: status.message,
+      });
+      setParentStatus(status);
+    } catch (error) {
+      console.error('Error checking status in home screen:', error);
+      // Don't set status on error - keep previous state
+    }
   };
 
   // Check parent status on mount and when profile changes
@@ -69,6 +96,31 @@ export default function HomeScreen() {
       setOrganizationModalVisible(true);
     }
   }, [profile, parentStatus]);
+
+  // Re-check status when profile data changes (e.g., after admin activation)
+  // This ensures status updates immediately when admin changes account status
+  useEffect(() => {
+    if (profile) {
+      console.log('🔄 Profile data changed, re-checking status:', {
+        status: profile.status,
+        organization_id: profile.organization_id,
+      });
+      
+      // Check status immediately when profile changes
+      checkStatus();
+      
+      // If profile just became active, ensure data is fresh
+      // The real-time subscription should have already refreshed, but double-check
+      if (profile.status === 'active') {
+        console.log('✅ Profile is active, ensuring data is fresh...');
+        // Refresh data to ensure everything is loaded
+        refreshData().then(() => {
+          // Re-check status after data refresh to ensure UI updates
+          checkStatus();
+        });
+      }
+    }
+  }, [profile?.status, profile?.organization_id, refreshData]);
 
   const onRefresh = async () => {
     await refreshData();
@@ -87,7 +139,6 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.userName}>{userName || 'Loading...'}</Text>
         </View>
         <View style={styles.headerIcons}>
           <TouchableOpacity 
@@ -436,7 +487,6 @@ export default function HomeScreen() {
               </Card>
             )}
           </View>
-        )}
 
         {/* Activity Section - Show for all users, but disabled for inactive */}
         <View style={[

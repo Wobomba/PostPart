@@ -12,12 +12,30 @@ LogBox.ignoreLogs([
   'refresh_token',
   'refresh token not found',
   'Invalid refresh token',
+  '403',
+  'Forbidden',
+  'Session invalid',
   'expo-notifications',
   'Expo Go',
   'android push notifications',
   'remote notifications',
   'was removed from Expo Go',
   'Use a development build',
+  // Browser extension errors (uBlock Origin, etc.) that manipulate DOM
+  'insertBefore',
+  'bootstrap-autofill',
+  'NotFoundError',
+  'Failed to execute',
+  // React Native Web rendering warnings
+  'Unexpected text node',
+  'text node cannot be a child',
+  'LogBox.web',
+  // Deprecation warnings (non-critical)
+  'shadow*',
+  'boxShadow',
+  'resizeMode',
+  'pointerEvents',
+  'useNativeDriver',
 ]);
 
 function NotificationHandler() {

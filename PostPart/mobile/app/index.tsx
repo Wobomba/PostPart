@@ -16,8 +16,18 @@ export default function SplashScreen() {
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      // If there's an error with the refresh token, clear the session
+      // If there's an error with the session, clear it
       if (sessionError) {
+        // Check for 403 Forbidden (invalid/expired session)
+        if (sessionError.status === 403 || sessionError.message?.includes('403') || sessionError.message?.includes('Forbidden')) {
+          console.warn('403 Forbidden - Session invalid, clearing session:', sessionError.message);
+          await supabase.auth.signOut();
+          setTimeout(() => {
+            router.replace('/(auth)/welcome');
+          }, 2000);
+          return;
+        }
+        
         // Check specifically for refresh token errors
         if (sessionError.message?.includes('Refresh Token') || 
             sessionError.message?.includes('refresh_token') ||
@@ -37,10 +47,20 @@ export default function SplashScreen() {
         return;
       }
       
-      // Also check getUser to catch any refresh token errors there
+      // Also check getUser to catch any refresh token or 403 errors there
       try {
         const { data: { user }, error: getUserError } = await supabase.auth.getUser();
         if (getUserError) {
+          // Check for 403 Forbidden (invalid/expired session)
+          if (getUserError.status === 403 || getUserError.message?.includes('403') || getUserError.message?.includes('Forbidden')) {
+            console.warn('403 Forbidden - Session invalid, clearing session:', getUserError.message);
+            await supabase.auth.signOut();
+            setTimeout(() => {
+              router.replace('/(auth)/welcome');
+            }, 2000);
+            return;
+          }
+          
           if (getUserError.message?.includes('Refresh Token') || 
               getUserError.message?.includes('refresh_token') ||
               getUserError.message?.includes('Invalid Refresh Token')) {
@@ -53,7 +73,16 @@ export default function SplashScreen() {
           }
         }
       } catch (getUserErr) {
-        // Ignore getUser errors, continue with session check
+        // Check for 403 in catch block
+        if (getUserErr?.status === 403 || getUserErr?.message?.includes('403') || getUserErr?.message?.includes('Forbidden')) {
+          console.warn('403 Forbidden in getUser catch, clearing session');
+          await supabase.auth.signOut();
+          setTimeout(() => {
+            router.replace('/(auth)/welcome');
+          }, 2000);
+          return;
+        }
+        // Ignore other getUser errors, continue with session check
       }
       
       // Delay for splash screen effect
@@ -85,9 +114,6 @@ export default function SplashScreen() {
           style={styles.logo}
           resizeMode="contain"
         />
-        
-        <Text style={styles.title}>POSTPART</Text>
-        <Text style={styles.subtitle}>WELL MAMAS, WELL BABIES</Text>
       </View>
       
       <ActivityIndicator
@@ -108,26 +134,11 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.xl,
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: Spacing.lg,
-  },
-  title: {
-    fontSize: Typography.fontSize.huge,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.primary,
-    marginBottom: Spacing.xs,
-    letterSpacing: 1,
-  },
-  subtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.text,
-    textAlign: 'center',
-    fontWeight: Typography.fontWeight.semibold,
-    letterSpacing: 0.5,
+    width: 240,
+    height: 240,
   },
   loader: {
     marginTop: Spacing.xl,

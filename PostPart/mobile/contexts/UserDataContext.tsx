@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { Cache, CacheKeys } from '../utils/cache';
 import { registerForPushNotificationsAsync } from '../utils/pushNotifications';
@@ -123,33 +124,77 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
 
   // Load fresh data from Supabase
   const loadFreshData = useCallback(async (userId: string, skipCache = false) => {
+    console.log('🔄 Loading fresh data for user:', userId);
     try {
       // Load profile and user name
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('full_name, organization_id, status, id')
         .eq('id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle to handle case where profile doesn't exist yet
+      
+      console.log('📋 Profile query result:', { profileData, profileError: profileError?.message });
 
       if (profileError) {
-        // Handle network errors gracefully
-        if (profileError.message?.includes('network') || profileError.message?.includes('fetch') || profileError.message?.includes('Network request failed')) {
-          console.warn('Network error loading profile, using cached data:', profileError.message);
+        // PGRST116 means "no rows found" - profile doesn't exist yet, which is OK
+        if (profileError.code === 'PGRST116') {
+          console.log('Profile not found yet, using auth metadata as fallback');
           // Try to get name from auth metadata as fallback
           try {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
               const authName = user.user_metadata?.full_name || user.user_metadata?.name;
-              if (authName && userName === 'Parent') {
-                setUserName(authName);
+              if (authName && authName.trim() !== '') {
+                setUserName(authName.trim());
+              } else {
+                // Use email username as last resort
+                const emailName = user.email?.split('@')[0] || 'Parent';
+                setUserName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
               }
             }
           } catch (authError) {
-            // Ignore auth errors
+            // Ignore auth errors, use default
+            setUserName('Parent');
           }
-          return; // Use cached data instead
+          // Don't return - continue loading other data even if profile doesn't exist
+        } else {
+          // Handle network errors gracefully
+          if (profileError.message?.includes('network') || profileError.message?.includes('fetch') || profileError.message?.includes('Network request failed')) {
+            console.warn('Network error loading profile, using cached data:', profileError.message);
+            // Try to get name from auth metadata as fallback
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                const authName = user.user_metadata?.full_name || user.user_metadata?.name;
+                if (authName && userName === 'Parent') {
+                  setUserName(authName);
+                }
+              }
+            } catch (authError) {
+              // Ignore auth errors
+            }
+            // Don't return - continue loading other data
+          } else {
+            // For other errors, log but don't throw - use fallback
+            console.error('Error fetching profile:', profileError);
+            // Try to get name from auth metadata as fallback
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                const authName = user.user_metadata?.full_name || user.user_metadata?.name;
+                if (authName && authName.trim() !== '') {
+                  setUserName(authName.trim());
+                } else {
+                  const emailName = user.email?.split('@')[0] || 'Parent';
+                  setUserName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
+                }
+              }
+            } catch (authError) {
+              setUserName('Parent');
+            }
+            // Don't return - continue loading other data
+          }
         }
-        throw profileError;
       }
 
       if (profileData) {
@@ -166,18 +211,43 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
           // Always update userName if profile has a valid full_name
           setUserName(profileName);
         } else {
-          // If profile doesn't have full_name, try to get from auth metadata as fallback
+          // Profile doesn't have full_name or it's empty - AGGRESSIVELY sync from auth metadata
           try {
             const { data: { user } } = await supabase.auth.getUser();
             const authName = user?.user_metadata?.full_name || user?.user_metadata?.name;
             if (authName && authName.trim() !== '') {
+              // Set userName from auth metadata immediately
               setUserName(authName.trim());
+              
+              // ALWAYS sync to profile if profile name is empty (even if it was just set)
+              // This ensures the database is updated
+              const { syncAuthToProfile } = await import('../utils/profile');
+              const syncResult = await syncAuthToProfile(userId).catch(err => {
+                console.warn('Error syncing name to profile in UserDataContext:', err);
+                return { success: false, error: err.message };
+              });
+              
+              // If sync succeeded, reload profile data to get the updated name
+              if (syncResult.success) {
+                console.log('Successfully synced name to profile, reloading...');
+                // Reload profile to get the synced name
+                const { data: updatedProfile } = await supabase
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('id', userId)
+                  .maybeSingle();
+                
+                if (updatedProfile?.full_name?.trim()) {
+                  setUserName(updatedProfile.full_name.trim());
+                }
+              }
             } else if (userName === 'Parent') {
               // Keep 'Parent' if we don't have any name
               setUserName('Parent');
             }
           } catch (authError) {
             // Ignore auth errors, keep existing userName
+            console.warn('Error getting auth user in UserDataContext:', authError);
           }
         }
         if (!skipCache) await Cache.set(CacheKeys.USER_PROFILE, profile);
@@ -204,6 +274,8 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
           .eq('parent_id', userId)
           .order('date_of_birth', { ascending: false });
 
+        console.log('👶 Children query result:', { count: childrenData?.length || 0, error: childrenError?.message });
+
         if (childrenError && !childrenError.message?.includes('network') && !childrenError.message?.includes('fetch')) {
           throw childrenError;
         }
@@ -211,12 +283,13 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
         if (childrenData) {
           setChildren(childrenData);
           if (!skipCache) await Cache.set(CacheKeys.USER_CHILDREN, childrenData);
+          console.log('✅ Children loaded:', childrenData.length);
         }
       } catch (error: any) {
         if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
-          console.warn('Network error loading children, using cached data:', error.message);
+          console.warn('⚠️ Network error loading children, using cached data:', error.message);
         } else {
-          console.error('Error loading children:', error);
+          console.error('❌ Error loading children:', error);
         }
       }
 
@@ -236,20 +309,31 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
           .order('check_in_time', { ascending: false })
           .limit(5);
 
-        if (checkInsError && !checkInsError.message?.includes('network') && !checkInsError.message?.includes('fetch')) {
-          throw checkInsError;
-        }
+        console.log('📋 Recent check-ins query result:', { count: recentCheckInsData?.length || 0, error: checkInsError?.message });
 
-        if (recentCheckInsData) {
+        if (checkInsError) {
+          console.error('❌ Check-ins query error details:', {
+            message: checkInsError.message,
+            code: checkInsError.code,
+            details: checkInsError.details,
+            hint: checkInsError.hint,
+          });
+          
+          if (checkInsError.message?.includes('network') || checkInsError.message?.includes('fetch')) {
+            console.warn('⚠️ Network error loading check-ins, using cached data:', checkInsError.message);
+          } else {
+            console.error('❌ Error loading check-ins (non-network):', checkInsError);
+          }
+        } else if (recentCheckInsData) {
           setRecentCheckIns(recentCheckInsData);
+          console.log('✅ Recent check-ins loaded:', recentCheckInsData.length);
           if (!skipCache) await Cache.set(CacheKeys.RECENT_CHECKINS, recentCheckInsData);
+        } else {
+          console.log('ℹ️ No recent check-ins data returned (empty array or null)');
         }
       } catch (error: any) {
-        if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
-          console.warn('Network error loading check-ins, using cached data:', error.message);
-        } else {
-          console.error('Error loading check-ins:', error);
-        }
+        console.error('❌ Exception loading check-ins:', error);
+        // Don't rethrow - continue loading other data
       }
 
       // Load active check-in
@@ -323,6 +407,7 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
         };
         setStats(newStats);
         if (!skipCache) await Cache.set(CacheKeys.USER_STATS, newStats);
+        console.log('📊 Stats loaded:', newStats);
       } catch (error: any) {
         if (error?.message?.includes('network') || error?.message?.includes('fetch')) {
           console.warn('Network error loading stats, using cached data:', error.message);
@@ -373,19 +458,51 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
       }
 
       // Load featured centers
-      const { data: centersData } = await supabase
-        .from('centers')
-        .select('*')
-        .eq('is_verified', true)
-        .order('name')
-        .limit(2);
+      try {
+        const { data: centersData, error: centersError } = await supabase
+          .from('centers')
+          .select('*')
+          .eq('is_verified', true)
+          .order('name')
+          .limit(2);
 
-      if (centersData) {
-        setFeaturedCenters(centersData);
-        if (!skipCache) await Cache.set(CacheKeys.FEATURED_CENTERS, centersData);
+        console.log('🏢 Featured centers query result:', { count: centersData?.length || 0, error: centersError?.message });
+
+        if (centersError) {
+          if (centersError.message?.includes('network') || centersError.message?.includes('fetch')) {
+            console.warn('⚠️ Network error loading featured centers, using cached data:', centersError.message);
+          } else {
+            console.error('❌ Error loading featured centers:', centersError);
+          }
+        } else if (centersData) {
+          setFeaturedCenters(centersData);
+          console.log('✅ Featured centers loaded:', centersData.length);
+          if (!skipCache) await Cache.set(CacheKeys.FEATURED_CENTERS, centersData);
+        }
+      } catch (error: any) {
+        console.error('❌ Exception loading featured centers:', error);
       }
     } catch (error) {
-      console.error('Error loading fresh data:', error);
+      console.error('❌ Error loading fresh data:', error);
+      // Even if there's an error, try to load at least some data
+      // This ensures partial data is available even if some queries fail
+      console.log('🔄 Attempting to load data individually after error...');
+      
+      // Try to load centers independently
+      try {
+        const { data: centersData } = await supabase
+          .from('centers')
+          .select('*')
+          .eq('is_verified', true)
+          .order('name')
+          .limit(2);
+        if (centersData && centersData.length > 0) {
+          setFeaturedCenters(centersData);
+          console.log('✅ Loaded centers after error:', centersData.length);
+        }
+      } catch (centerError) {
+        console.error('❌ Failed to load centers after error:', centerError);
+      }
     }
   }, []);
 
@@ -401,6 +518,14 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
         const { data: { user }, error } = await supabase.auth.getUser();
         
         if (error) {
+          // Check for 403 Forbidden (invalid/expired session)
+          if (error.status === 403 || error.message?.includes('403') || error.message?.includes('Forbidden')) {
+            console.warn('403 Forbidden - Session invalid, clearing session:', error.message);
+            await supabase.auth.signOut().catch(() => {});
+            setLoading(false);
+            return;
+          }
+          
           // Check for refresh token errors
           if (error.message?.includes('refresh token') || 
               error.message?.includes('Refresh Token') ||
@@ -476,7 +601,13 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
             loadFreshData(user.id, true);
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Check-ins subscription active');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Check-ins subscription error');
+          }
+        });
 
       // Subscribe to notifications
       const notificationsChannel = supabase
@@ -494,9 +625,15 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
             refreshStats();
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Notifications subscription active');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Notifications subscription error');
+          }
+        });
 
-      // Subscribe to profile changes (for when account is activated/updated)
+      // Subscribe to profile changes (for when account is activated/updated/suspended)
       const profileChannel = supabase
         .channel('user-profile-changes')
         .on(
@@ -507,24 +644,167 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
             table: 'profiles',
             filter: `id=eq.${user.id}`,
           },
-          (payload) => {
-            // Refresh profile data when profile is updated (e.g., account activated)
-            console.log('Profile updated, refreshing data:', payload);
-            loadFreshData(user.id, true);
+          async (payload) => {
+            // Refresh profile data when profile is updated (e.g., account activated, status changed)
+            console.log('🔄 Profile updated, refreshing data:', payload);
+            console.log('📝 Status changed:', payload.new?.status, '→', payload.old?.status);
+            console.log('🏢 Organization ID changed:', payload.new?.organization_id, '→', payload.old?.organization_id);
+            
+            // Check if account was just activated (status changed from inactive/null to active)
+            const wasInactive = !payload.old?.status || payload.old?.status === 'inactive';
+            const isNowActive = payload.new?.status === 'active';
+            const justActivated = wasInactive && isNowActive;
+            
+            if (justActivated) {
+              console.log('✅ Account just activated! Forcing immediate data refresh...');
+              // Force immediate refresh of all data when account is activated
+              // The profile state update will trigger useEffect hooks in components
+              await loadFreshData(user.id, true);
+            } else {
+              // For other updates, refresh data normally
+              loadFreshData(user.id, true);
+            }
+            
+            // If organization_id changed, we need to re-subscribe to the new organization
+            if (payload.new?.organization_id !== payload.old?.organization_id) {
+              console.log('🔄 Organization ID changed, will re-subscribe on next profile load');
+            }
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Profile subscription active');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('❌ Profile subscription error - will rely on polling fallback');
+            // If subscription fails, the periodic refresh will still work
+          }
+        });
+
+      // Subscribe to organization changes (for when organization status changes)
+      // We need to get the organization_id first, then subscribe
+      let orgChannel: any = null;
+      
+      const setupOrgSubscription = async () => {
+        try {
+          // Clean up existing org subscription if any
+          if (orgChannel) {
+            console.log('🧹 Cleaning up existing organization subscription');
+            supabase.removeChannel(orgChannel);
+            orgChannel = null;
+          }
+
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('organization_id')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profileData?.organization_id) {
+            console.log('🔔 Setting up organization subscription for org:', profileData.organization_id);
+            orgChannel = supabase
+              .channel(`user-organization-changes-${user.id}`)
+              .on(
+                'postgres_changes',
+                {
+                  event: 'UPDATE',
+                  schema: 'public',
+                  table: 'organizations',
+                  filter: `id=eq.${profileData.organization_id}`,
+                },
+                (payload) => {
+                  // Organization status changed - refresh all data
+                  console.log('🏢 Organization updated, refreshing data:', payload);
+                  console.log('📝 Organization status changed:', payload.new?.status, '→', payload.old?.status);
+                  // Force refresh all data including profile and status
+                  loadFreshData(user.id, true);
+                }
+              )
+              .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                  console.log('✅ Organization subscription active');
+                } else if (status === 'CHANNEL_ERROR') {
+                  console.error('❌ Organization subscription error - will rely on polling fallback');
+                }
+              });
+          } else {
+            console.log('ℹ️ No organization_id found, skipping organization subscription');
+          }
+        } catch (error) {
+          console.error('Error setting up organization subscription:', error);
+        }
+      };
+
+      // Set up organization subscription initially
+      setupOrgSubscription();
+      
+      // Re-subscribe when profile changes (in case organization_id changes)
+      // We'll set up a listener that re-runs setupOrgSubscription when profile.organization_id changes
+      // This is handled by the profile subscription above triggering loadFreshData
 
       return () => {
+        console.log('🧹 Cleaning up subscriptions');
         supabase.removeChannel(checkInsChannel);
         supabase.removeChannel(notificationsChannel);
         supabase.removeChannel(profileChannel);
+        if (orgChannel) {
+          supabase.removeChannel(orgChannel);
+        }
       };
     };
 
     const cleanup = setupSubscriptions();
     return () => {
       cleanup.then(fn => fn && fn());
+    };
+  }, [user, loadFreshData]);
+
+  // Monitor app state and refresh data when app comes to foreground
+  // This ensures updates are picked up even if real-time subscriptions fail
+  useEffect(() => {
+    if (!user) return;
+
+    let appState = AppState.currentState;
+    let refreshInterval: NodeJS.Timeout | null = null;
+
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (
+        appState.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // App has come to the foreground - refresh data immediately
+        console.log('📱 App came to foreground, refreshing data...');
+        loadFreshData(user.id, true).catch(err => {
+          console.error('Error refreshing data on foreground:', err);
+        });
+      }
+      appState = nextAppState;
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Set up periodic refresh when app is active (every 30 seconds)
+    // This acts as a fallback if real-time subscriptions fail
+    const startPeriodicRefresh = () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+      refreshInterval = setInterval(() => {
+        if (AppState.currentState === 'active') {
+          console.log('🔄 Periodic data refresh (fallback)...');
+          loadFreshData(user.id, true).catch(err => {
+            console.error('Error in periodic refresh:', err);
+          });
+        }
+      }, 30000); // Refresh every 30 seconds
+    };
+
+    startPeriodicRefresh();
+
+    return () => {
+      subscription.remove();
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
     };
   }, [user, loadFreshData]);
 

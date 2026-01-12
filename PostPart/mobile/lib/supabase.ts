@@ -71,6 +71,13 @@ export async function safeGetUser() {
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error) {
+      // Check for 403 Forbidden (invalid/expired session)
+      if (error.status === 403 || error.message?.includes('403') || error.message?.includes('Forbidden')) {
+        console.warn('403 Forbidden - Session invalid, clearing session:', error.message);
+        await supabase.auth.signOut().catch(() => {});
+        return { user: null, error };
+      }
+      
       // Check for refresh token errors
       if (error.message?.includes('Refresh Token') || 
           error.message?.includes('refresh_token') ||
@@ -83,6 +90,13 @@ export async function safeGetUser() {
     
     return { user, error };
   } catch (err: any) {
+    // Check for 403 Forbidden in catch block
+    if (err?.status === 403 || err?.message?.includes('403') || err?.message?.includes('Forbidden')) {
+      console.warn('403 Forbidden in safeGetUser, clearing session:', err.message);
+      await supabase.auth.signOut().catch(() => {});
+      return { user: null, error: err };
+    }
+    
     // Check for refresh token errors in catch block
     if (err?.message?.includes('Refresh Token') || 
         err?.message?.includes('refresh_token') ||

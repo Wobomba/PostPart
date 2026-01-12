@@ -178,46 +178,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'flex-start',
-          py: 3,
-          px: 3,
+          alignItems: 'center',
+          justifyContent: 'center',
+          py: 1.5,
+          px: 2,
           borderBottom: '1px solid',
           borderColor: 'divider',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <Box
-            component="img"
-            src="/postpart-logo.png"
-            alt="PostPart"
-            sx={{
-              width: 40,
-              height: 40,
-              mr: 1.5,
-            }}
-          />
-          <Typography 
-            variant="h5" 
-            sx={{ 
-              fontWeight: 700, 
-              color: '#E91E63',
-              fontSize: '1.5rem',
-              letterSpacing: '-0.5px',
-            }}
-          >
-            PostPart
-          </Typography>
-        </Box>
-        <Typography 
-          variant="caption" 
-          sx={{ 
-            color: 'text.secondary',
-            fontSize: '0.75rem',
-            fontWeight: 500,
+        <Box
+          component="img"
+          src="/postpart-logo.png"
+          alt="PostPart"
+          sx={{
+            width: 140,
+            height: 140,
+            objectFit: 'contain',
           }}
-        >
-          Well Mamas Well Babies
-        </Typography>
+        />
       </Box>
 
       {/* Navigation */}
@@ -403,19 +381,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               <MenuIcon />
             </IconButton>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Box
                 component="img"
                 src="/postpart-logo.png"
                 alt="PostPart"
                 sx={{
-                  width: 28,
-                  height: 28,
+                  width: 48,
+                  height: 48,
+                  objectFit: 'contain',
                 }}
               />
-              <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main', fontSize: '1rem' }}>
-                PostPart
-              </Typography>
             </Box>
           </Box>
           <NotificationBell />

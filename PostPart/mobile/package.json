@@ -7,6 +7,15 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:auth": "playwright test tests/auth.spec.ts",
+    "test:home": "playwright test tests/home.spec.ts",
+    "test:centers": "playwright test tests/centers.spec.ts",
+    "test:access-logs": "playwright test tests/access-logs.spec.ts",
+    "test:report": "playwright show-report",
     "eas": "eas",
     "eas:build:android": "eas build --platform android",
     "eas:build:ios": "eas build --platform ios",
@@ -23,8 +32,8 @@
     "expo": "~54.0.30",
     "expo-camera": "^17.0.10",
     "expo-constants": "^18.0.12",
-    "expo-device": "~6.0.2",
     "expo-dev-client": "~6.0.20",
+    "expo-device": "~6.0.2",
     "expo-haptics": "~15.0.8",
     "expo-image-picker": "^17.0.10",
     "expo-linking": "^8.0.11",
@@ -41,9 +50,11 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "^54.0.9",
     "eas-cli": "^16.28.0",
+    "playwright": "^1.57.0",
     "typescript": "~5.9.2"
   },
   "private": true

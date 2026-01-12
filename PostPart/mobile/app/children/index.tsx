@@ -15,7 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { Card } from '../../components/Card';
 import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
-import { checkParentStatus } from '../../utils/parentStatus';
+import { checkParentStatus, ParentStatus } from '../../utils/parentStatus';
 import { useUserData } from '../../contexts/UserDataContext';
 
 interface Child {
@@ -40,12 +40,13 @@ export default function ChildrenManagementScreen() {
     refreshChildren,
   } = useUserData();
 
+  const [parentStatus, setParentStatus] = useState<ParentStatus | null>(null);
+
   useEffect(() => {
     const checkStatus = async () => {
       const status = await checkParentStatus();
-      if (!status.isActive) {
-        router.replace('/(tabs)/home');
-      }
+      setParentStatus(status);
+      // Don't redirect - allow viewing but disable interactions
     };
     checkStatus();
     // Children are already loaded from context, just set loading to false
@@ -114,8 +115,15 @@ export default function ChildrenManagementScreen() {
     <Card
       variant="default"
       padding="medium"
-      onPress={() => router.push(`/children/edit?id=${item.id}`)}
-      style={styles.childCard}
+      onPress={() => {
+        if (parentStatus?.isActive) {
+          router.push(`/children/edit?id=${item.id}`);
+        }
+      }}
+      style={[
+        styles.childCard,
+        !parentStatus?.isActive && styles.disabledCard
+      ]}
     >
       <View style={styles.childHeader}>
         <View style={styles.childIcon}>
@@ -137,15 +145,17 @@ export default function ChildrenManagementScreen() {
             <Text style={styles.childDetailText}>{calculateAge(item.date_of_birth)}</Text>
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleDeleteChild(item);
-          }}
-        >
-          <Ionicons name="trash-outline" size={20} color={Colors.error} />
-        </TouchableOpacity>
+        {parentStatus?.isActive && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleDeleteChild(item);
+            }}
+          >
+            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+          </TouchableOpacity>
+        )}
       </View>
     </Card>
   );
@@ -169,12 +179,14 @@ export default function ChildrenManagementScreen() {
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>My Children</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push('/children/add')}
-          >
-            <Ionicons name="add" size={24} color={Colors.primary} />
-          </TouchableOpacity>
+          {parentStatus?.isActive && (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push('/children/add')}
+            >
+              <Ionicons name="add" size={24} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -183,7 +195,10 @@ export default function ChildrenManagementScreen() {
         data={children}
         renderItem={renderChild}
         keyExtractor={(item) => item.id}
-        style={styles.list}
+        style={[
+          styles.list,
+          !parentStatus?.isActive && styles.disabledList
+        ]}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: Spacing.xxxl + insets.bottom },
@@ -191,6 +206,7 @@ export default function ChildrenManagementScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
+        scrollEnabled={parentStatus?.isActive !== false}
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyState}>
@@ -199,13 +215,15 @@ export default function ChildrenManagementScreen() {
               <Text style={styles.emptySubtitle}>
                 Add your children's profiles to use for check-ins at daycare centers
               </Text>
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={() => router.push('/children/add')}
-              >
-                <Ionicons name="add-circle" size={20} color={Colors.primary} />
-                <Text style={styles.emptyButtonText}>Add Your First Child</Text>
-              </TouchableOpacity>
+              {parentStatus?.isActive && (
+                <TouchableOpacity
+                  style={styles.emptyButton}
+                  onPress={() => router.push('/children/add')}
+                >
+                  <Ionicons name="add-circle" size={20} color={Colors.primary} />
+                  <Text style={styles.emptyButtonText}>Add Your First Child</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : null
         }
@@ -328,6 +346,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.primary,
+  },
+  disabledCard: {
+    opacity: 0.5,
+  },
+  disabledList: {
+    opacity: 0.5,
   },
 });
 

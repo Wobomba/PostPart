@@ -6,7 +6,16 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:auth": "playwright test tests/auth.spec.ts",
+    "test:dashboard": "playwright test tests/dashboard.spec.ts",
+    "test:organizations": "playwright test tests/organizations.spec.ts",
+    "test:parents": "playwright test tests/parents.spec.ts",
+    "test:report": "playwright show-report"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",
@@ -28,12 +37,14 @@
     "recharts": "^3.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
+    "playwright": "^1.57.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

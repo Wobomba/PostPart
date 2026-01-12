@@ -32,6 +32,7 @@ export default function ProfileScreen() {
   
   // Get data from context
   const {
+    user,
     profile,
     children,
     stats,
@@ -137,7 +138,7 @@ export default function ProfileScreen() {
 
           {/* Name & Email */}
           <Text style={styles.displayName}>{profile?.full_name || 'User'}</Text>
-          <Text style={styles.email}>{profile?.email || ''}</Text>
+          <Text style={styles.email}>{user?.email || ''}</Text>
 
           {/* Stats Row */}
           <View style={styles.statsContainer}>

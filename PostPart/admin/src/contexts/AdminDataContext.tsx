@@ -81,19 +81,8 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
       const twoWeeksAgo = new Date(today);
       twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-      // Load all counts in parallel
-      const [
-        { count: orgCount },
-        { count: parentCount },
-        { count: centerCount },
-        { count: checkinCount },
-        { count: todayCheckinCount },
-        { count: todayNewParentCount },
-        { count: weeklyCheckinCount },
-        { count: lastWeekCheckinCount },
-        { count: unverifiedCenterCount },
-        { count: unassociatedParentCount },
-      ] = await Promise.all([
+      // Load all counts in parallel with error handling
+      const results = await Promise.allSettled([
         supabase.from('organizations').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('centers').select('*', { count: 'exact', head: true }),
@@ -115,8 +104,40 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
           .is('organization_id', null),
       ]);
 
-      // Load recent check-ins, top centers, and notifications in parallel
-      const [recentDataResult, topCentersResult, notificationsResult, todayCheckinsResult] = await Promise.all([
+      // Extract counts from results, handling errors gracefully
+      const [
+        orgResult,
+        parentResult,
+        centerResult,
+        checkinResult,
+        todayCheckinResult,
+        todayNewParentResult,
+        weeklyCheckinResult,
+        lastWeekCheckinResult,
+        unverifiedCenterResult,
+        unassociatedParentResult,
+      ] = results;
+
+      const orgCount = orgResult.status === 'fulfilled' ? (orgResult.value.count || 0) : 0;
+      const parentCount = parentResult.status === 'fulfilled' ? (parentResult.value.count || 0) : 0;
+      const centerCount = centerResult.status === 'fulfilled' ? (centerResult.value.count || 0) : 0;
+      const checkinCount = checkinResult.status === 'fulfilled' ? (checkinResult.value.count || 0) : 0;
+      const todayCheckinCount = todayCheckinResult.status === 'fulfilled' ? (todayCheckinResult.value.count || 0) : 0;
+      const todayNewParentCount = todayNewParentResult.status === 'fulfilled' ? (todayNewParentResult.value.count || 0) : 0;
+      const weeklyCheckinCount = weeklyCheckinResult.status === 'fulfilled' ? (weeklyCheckinResult.value.count || 0) : 0;
+      const lastWeekCheckinCount = lastWeekCheckinResult.status === 'fulfilled' ? (lastWeekCheckinResult.value.count || 0) : 0;
+      const unverifiedCenterCount = unverifiedCenterResult.status === 'fulfilled' ? (unverifiedCenterResult.value.count || 0) : 0;
+      const unassociatedParentCount = unassociatedParentResult.status === 'fulfilled' ? (unassociatedParentResult.value.count || 0) : 0;
+
+      // Log any errors
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`Error loading dashboard stat ${index}:`, result.reason);
+        }
+      });
+
+      // Load recent check-ins, top centers, and notifications in parallel with error handling
+      const detailResults = await Promise.allSettled([
         supabase
           .from('checkins')
           .select(`
@@ -146,10 +167,20 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
           .lte('check_in_time', todayEnd.toISOString()),
       ]);
 
-      const recentData = recentDataResult.data || [];
-      const topCentersData = topCentersResult.data || [];
-      const notificationsData = notificationsResult.data || [];
-      const todayCheckins = todayCheckinsResult.data || [];
+      // Extract data from results, handling errors gracefully
+      const [recentDataResult, topCentersResult, notificationsResult, todayCheckinsResult] = detailResults;
+      
+      const recentData = recentDataResult.status === 'fulfilled' ? (recentDataResult.value.data || []) : [];
+      const topCentersData = topCentersResult.status === 'fulfilled' ? (topCentersResult.value.data || []) : [];
+      const notificationsData = notificationsResult.status === 'fulfilled' ? (notificationsResult.value.data || []) : [];
+      const todayCheckins = todayCheckinsResult.status === 'fulfilled' ? (todayCheckinsResult.value.data || []) : [];
+
+      // Log any errors
+      detailResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`Error loading dashboard detail ${index}:`, result.reason);
+        }
+      });
       const uniqueCentersToday = new Set(todayCheckins.map(c => c.center_id).filter(Boolean));
 
       // Aggregate top centers
@@ -191,8 +222,15 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
 
       setDashboardStats(stats);
       if (!skipCache) Cache.set(CacheKeys.DASHBOARD_STATS, stats);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading dashboard stats:', error);
+      // If there's a network error, try to use cached data as fallback
+      if (error?.message?.includes('fetch') || error?.message?.includes('network')) {
+        const cachedStats = Cache.get<DashboardStats>(CacheKeys.DASHBOARD_STATS);
+        if (cachedStats) {
+          setDashboardStats(cachedStats);
+        }
+      }
     }
   }, []);
 
@@ -201,8 +239,8 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
     try {
       const events: ActivityEvent[] = [];
 
-      // Load activity logs and recent check-ins in parallel
-      const [activityLogsResult, recentCheckInsResult] = await Promise.all([
+      // Load activity logs and recent check-ins in parallel with error handling
+      const results = await Promise.allSettled([
         supabase
           .from('activity_log')
           .select('*')
@@ -225,8 +263,18 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
           .limit(20),
       ]);
 
-      const activityLogs = activityLogsResult.data || [];
-      const recentCheckIns = recentCheckInsResult.data || [];
+      // Extract data from results, handling errors gracefully
+      const [activityLogsResult, recentCheckInsResult] = results;
+      
+      const activityLogs = activityLogsResult.status === 'fulfilled' ? (activityLogsResult.value.data || []) : [];
+      const recentCheckIns = recentCheckInsResult.status === 'fulfilled' ? (recentCheckInsResult.value.data || []) : [];
+
+      // Log any errors
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`Error loading activity data ${index}:`, result.reason);
+        }
+      });
 
       // Process activity logs
       activityLogs.forEach((log: any) => {
@@ -277,8 +325,16 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
       const timeline = events.slice(0, 10);
       setActivityTimeline(timeline);
       if (!skipCache) Cache.set(CacheKeys.DASHBOARD_ACTIVITY, timeline);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading activity timeline:', error);
+      // If there's a network error, try to use cached data as fallback
+      if (error?.message?.includes('fetch') || error?.message?.includes('network')) {
+        const cachedActivity = Cache.get<ActivityEvent[]>(CacheKeys.DASHBOARD_ACTIVITY);
+        if (cachedActivity) {
+          setActivityTimeline(cachedActivity);
+          return;
+        }
+      }
       setActivityTimeline([]);
     }
   }, []);

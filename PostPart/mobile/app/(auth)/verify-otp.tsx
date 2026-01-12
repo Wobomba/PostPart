@@ -45,6 +45,18 @@ export default function VerifyOTPScreen() {
         if (emailError) throw emailError;
         
         // Email verification succeeded
+        // Sync name from auth metadata to profile immediately after verification
+        if (emailData?.user?.id) {
+          try {
+            const { syncAuthToProfile } = await import('../../utils/profile');
+            await syncAuthToProfile(emailData.user.id);
+            console.log('Synced name to profile after email OTP verification');
+          } catch (syncError) {
+            console.warn('Error syncing name after email OTP verification:', syncError);
+            // Continue anyway - login will also sync
+          }
+        }
+
         Alert.alert(
           'Email Verified! ✅',
           'Your email has been successfully verified. You can now sign in to your account.',
@@ -59,6 +71,18 @@ export default function VerifyOTPScreen() {
       }
 
       // Signup verification succeeded
+      // Sync name from auth metadata to profile immediately after verification
+      if (data?.user?.id) {
+        try {
+          const { syncAuthToProfile } = await import('../../utils/profile');
+          await syncAuthToProfile(data.user.id);
+          console.log('Synced name to profile after OTP verification');
+        } catch (syncError) {
+          console.warn('Error syncing name after OTP verification:', syncError);
+          // Continue anyway - login will also sync
+        }
+      }
+
       Alert.alert(
         'Email Verified! ✅',
         'Your email has been successfully verified. You can now sign in to your account.',
@@ -98,11 +122,30 @@ export default function VerifyOTPScreen() {
         email: email.toLowerCase().trim(),
       });
 
-      if (error) throw error;
+      if (error) {
+        // Check for rate limit errors
+        if (error.message?.includes('rate limit') || 
+            error.message?.includes('too many') ||
+            error.message?.includes('429') ||
+            error.status === 429) {
+          Alert.alert(
+            'Rate Limit Reached',
+            'You\'ve requested too many codes. Please wait 60 seconds before requesting another code, or wait up to 1 hour if you\'ve exceeded the hourly limit.\n\nFor development, consider disabling email confirmation in Supabase Dashboard.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       Alert.alert('Code Sent! 📧', 'A new verification code has been sent to your email.');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to resend verification code');
+      console.error('Resend OTP error:', error);
+      Alert.alert(
+        'Error', 
+        error.message || 'Failed to resend verification code. Please try again later.'
+      );
     } finally {
       setResending(false);
     }

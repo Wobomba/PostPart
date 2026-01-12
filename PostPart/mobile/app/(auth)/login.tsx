@@ -7,6 +7,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { supabase } from '../../lib/supabase';
 import { checkParentStatus, showStatusAlert } from '../../utils/parentStatus';
+import { syncAuthToProfile } from '../../utils/profile';
 import { Colors, Typography, Spacing, BorderRadius, Layout } from '../../constants/theme';
 
 export default function LoginScreen() {
@@ -14,7 +15,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -76,17 +77,42 @@ export default function LoginScreen() {
             [{ text: 'OK' }]
           );
         } else {
-          Alert.alert('Sign In Failed', error.message || 'Invalid email or password');
+          // Check for invalid credentials errors
+          const isInvalidCredentials = 
+            error.message.toLowerCase().includes('invalid login credentials') ||
+            error.message.toLowerCase().includes('invalid password') ||
+            error.message.toLowerCase().includes('invalid email') ||
+            error.message.toLowerCase().includes('email not found') ||
+            error.message.toLowerCase().includes('user not found') ||
+            error.status === 400 ||
+            error.status === 401;
+          
+          const errorMessage = isInvalidCredentials 
+            ? 'Invalid credentials' 
+            : (error.message || 'Invalid credentials');
+          
+          // Set inline error for display in form
+          setErrors({ general: errorMessage });
+          
+          // Also show alert for visibility
+          Alert.alert('Sign In Failed', errorMessage);
         }
       } else if (data?.session) {
         // Check if user has an organization or organization name
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('organization_id, organization_name')
             .eq('id', user.id)
-            .single();
+            .maybeSingle(); // Use maybeSingle to handle case where profile doesn't exist yet
+
+          // If profile doesn't exist or doesn't have organization, redirect to organization entry
+          if (profileError && profileError.code === 'PGRST116') {
+            // Profile doesn't exist yet, redirect to organization entry
+            router.replace('/(auth)/organization');
+            return;
+          }
 
           if (!profile?.organization_id && !profile?.organization_name) {
             // User doesn't have organization, redirect to organization entry
@@ -95,13 +121,23 @@ export default function LoginScreen() {
           }
         }
 
+        // Sync auth metadata to profile to ensure name is set
+        // This handles cases where profile was created but name wasn't synced
+        try {
+          await syncAuthToProfile(user.id);
+        } catch (syncError) {
+          console.warn('Error syncing profile on login:', syncError);
+          // Continue anyway - UserDataContext will handle it
+        }
+
         // Navigate to home on successful login
         // Inactive users will be handled on the home screen
         router.replace('/(tabs)/home');
       }
     } catch (error: any) {
       console.error('Login exception:', error);
-      const errorMessage = error?.message || error?.toString() || 'An unexpected error occurred';
+      const errorMessage = 'Invalid credentials';
+      setErrors({ general: errorMessage });
       Alert.alert('Sign In Failed', errorMessage);
     } finally {
       setLoading(false);
@@ -120,13 +156,20 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
+          {errors.general && (
+            <View key="error-message" style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={20} color={Colors.error} />
+              <Text style={styles.errorText}>{errors.general}</Text>
+            </View>
+          )}
+          
           <Input
             label="Email Address"
             placeholder="you@example.com"
             value={email}
             onChangeText={(text) => {
               setEmail(text);
-              if (errors.email) setErrors({ ...errors, email: undefined });
+              if (errors.email || errors.general) setErrors({ ...errors, email: undefined, general: undefined });
             }}
             error={errors.email}
             keyboardType="email-address"
@@ -140,7 +183,7 @@ export default function LoginScreen() {
             value={password}
             onChangeText={(text) => {
               setPassword(text);
-              if (errors.password) setErrors({ ...errors, password: undefined });
+              if (errors.password || errors.general) setErrors({ ...errors, password: undefined, general: undefined });
             }}
             error={errors.password}
             secureTextEntry
@@ -245,6 +288,23 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: Typography.lineHeight.normal * Typography.fontSize.xs,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.error + '15',
+    borderWidth: 1,
+    borderColor: Colors.error,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.error,
+    fontWeight: Typography.fontWeight.medium,
   },
 });
 
