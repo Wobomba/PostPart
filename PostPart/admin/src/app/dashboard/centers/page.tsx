@@ -1143,7 +1143,7 @@ export default function CentersPage() {
                 {/* Statistics Cards */}
                 <Box sx={{ p: 3, bgcolor: '#F9FAFB' }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={4}>
+                    <Grid size={4}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'white', borderRadius: 1 }}>
                         <Typography variant="h5" sx={{ fontWeight: 700, color: '#4CAF50', mb: 0.5 }}>
                           {viewingCenter.todayCheckIns}
@@ -1153,7 +1153,7 @@ export default function CentersPage() {
                         </Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid size={4}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'white', borderRadius: 1 }}>
                         <Typography variant="h5" sx={{ fontWeight: 700, color: '#2196F3', mb: 0.5 }}>
                           {viewingCenter.checkInCount}
@@ -1163,7 +1163,7 @@ export default function CentersPage() {
                         </Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid size={4}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'white', borderRadius: 1 }}>
                         <Typography variant="h5" sx={{ fontWeight: 700, color: '#9C27B0', mb: 0.5 }}>
                           {viewingCenter.activeQRCodes}

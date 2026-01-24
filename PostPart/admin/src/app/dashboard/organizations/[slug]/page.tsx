@@ -386,7 +386,7 @@ export default function OrganizationDetailPage() {
 
         {/* Statistics Cards */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={6} sm={3}>
+          <Grid>
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -398,7 +398,7 @@ export default function OrganizationDetailPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={6} sm={3}>
+          <Grid>
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -410,7 +410,7 @@ export default function OrganizationDetailPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={6} sm={3}>
+          <Grid>
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -422,7 +422,7 @@ export default function OrganizationDetailPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={6} sm={3}>
+          <Grid>
             <Card>
               <CardContent>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -438,7 +438,7 @@ export default function OrganizationDetailPage() {
 
         <Grid container spacing={3}>
           {/* Organization Details */}
-          <Grid item xs={12} md={6}>
+          <Grid>
             <Card>
               <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -559,7 +559,7 @@ export default function OrganizationDetailPage() {
           </Grid>
 
           {/* Parents & Activity */}
-          <Grid item xs={12} md={6}>
+          <Grid>
             <Card sx={{ mb: 3 }}>
               <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
