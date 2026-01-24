@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../../../components/DashboardLayout';
 import { supabase } from '../../../../lib/supabase';
 import type { CenterQRCode, Center } from '../../../../../shared/types';
 
-export default function QRCodesPage() {
+function QRCodesPageContent() {
   const searchParams = useSearchParams();
   const centerId = searchParams.get('center');
   
@@ -277,6 +277,20 @@ export default function QRCodesPage() {
         )}
       </Box>
     </DashboardLayout>
+  );
+}
+
+export default function QRCodesPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+          Loading...
+        </div>
+      </DashboardLayout>
+    }>
+      <QRCodesPageContent />
+    </Suspense>
   );
 }
 

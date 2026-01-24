@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '../../../components/DashboardLayout';
 import ParentForm from '../../../components/ParentForm';
@@ -74,7 +74,7 @@ interface ParentStats {
   todayCheckIns: number;
 }
 
-export default function ParentsPage() {
+function ParentsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orgFilter = searchParams.get('organization');
@@ -1229,5 +1229,19 @@ export default function ParentsPage() {
         title="Export Parent Report"
       />
     </DashboardLayout>
+  );
+}
+
+export default function ParentsPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+          <CircularProgress />
+        </Box>
+      </DashboardLayout>
+    }>
+      <ParentsPageContent />
+    </Suspense>
   );
 }
