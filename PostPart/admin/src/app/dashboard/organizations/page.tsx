@@ -525,7 +525,7 @@ export default function OrganizationsPage() {
       }
 
       const parentIdList = parentIds?.map(p => p.id) || [];
-      let checkInsData = [];
+      let checkInsData: any[] = [];
 
       // Only query check-ins if there are parents
       if (parentIdList.length > 0) {
