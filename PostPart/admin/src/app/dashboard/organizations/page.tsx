@@ -90,6 +90,16 @@ interface QuickInsight {
   count: number;
 }
 
+interface CheckInData {
+  id: string;
+  check_in_time: string;
+  check_out_time: string | null;
+  child_id: string;
+  center_id: string;
+  centers?: { name: string } | null;
+  children?: { first_name: string; last_name: string } | null;
+}
+
 export default function OrganizationsPage() {
   const router = useRouter();
   const [organizations, setOrganizations] = useState<OrganizationWithMetrics[]>([]);
@@ -113,7 +123,7 @@ export default function OrganizationsPage() {
   const [viewingOrganization, setViewingOrganization] = useState<OrganizationWithMetrics | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewParents, setViewParents] = useState<any[]>([]);
-  const [viewRecentCheckIns, setViewRecentCheckIns] = useState<any[]>([]);
+  const [viewRecentCheckIns, setViewRecentCheckIns] = useState<CheckInData[]>([]);
   const [viewFullDetails, setViewFullDetails] = useState(false);
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
@@ -525,7 +535,7 @@ export default function OrganizationsPage() {
       }
 
       const parentIdList = parentIds?.map((p: { id: string }) => p.id) || [];
-      let checkInsData: any[] = [];
+      let checkInsData: CheckInData[] = [];
 
       // Only query check-ins if there are parents
       if (parentIdList.length > 0) {
@@ -554,9 +564,9 @@ export default function OrganizationsPage() {
             .order('check_in_time', { ascending: false })
             .limit(10);
           
-          checkInsData = (simpleCheckIns || []) as any[];
+          checkInsData = (simpleCheckIns || []) as CheckInData[];
         } else {
-          checkInsData = (checkIns || []) as any[];
+          checkInsData = (checkIns || []) as CheckInData[];
         }
       }
 
@@ -646,7 +656,7 @@ export default function OrganizationsPage() {
     // Filter check-ins by date range if provided
     let filteredCheckIns = viewRecentCheckIns;
     if (dateRange?.startDate || dateRange?.endDate) {
-      filteredCheckIns = viewRecentCheckIns.filter((c: any) => {
+      filteredCheckIns = viewRecentCheckIns.filter((c: CheckInData) => {
         const checkInDate = new Date(c.check_in_time);
         if (dateRange.startDate && checkInDate < dateRange.startDate) return false;
         if (dateRange.endDate) {
