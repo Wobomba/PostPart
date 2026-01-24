@@ -60,7 +60,7 @@ import {
   QrCode as QrCodeIcon,
   GetApp as GetAppIcon,
 } from '@mui/icons-material';
-import type { Center } from '../../../../../../../shared/types';
+import type { Center } from '../../../../../shared/types';
 
 interface CenterWithMetrics extends Center {
   checkInCount: number;
@@ -410,7 +410,7 @@ export default function CentersPage() {
         city: viewingCenter.city,
         district: viewingCenter.district,
         region: viewingCenter.region,
-        capacity: viewingCenter.capacity,
+        capacity: viewingCenter.capacity || 0,
         is_verified: viewingCenter.is_verified,
         services_offered: viewingCenter.services_offered,
         operating_schedule: viewingCenter.operating_schedule,
@@ -495,10 +495,10 @@ export default function CentersPage() {
         entityType: 'center',
         entityId: centerToDelete.id,
         entityName: centerToDelete.name,
-        description: `Centre ${centerToDelete.name} in ${centerToDelete.city}, ${centerToDelete.state} was deleted`,
+        description: `Centre ${centerToDelete.name} in ${centerToDelete.city}, ${centerToDelete.region} was deleted`,
         metadata: {
           city: centerToDelete.city,
-          state: centerToDelete.state,
+          state: centerToDelete.region,
           had_check_ins: checkInCount && checkInCount > 0,
           check_in_count: checkInCount || 0,
         },

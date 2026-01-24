@@ -60,7 +60,7 @@ import {
   Close as CloseIcon,
   GetApp as GetAppIcon,
 } from '@mui/icons-material';
-import type { Organization } from '../../../../../../../shared/types';
+import type { Organization } from '../../../../../shared/types';
 import { generateOrganisationPDF } from '../../../utils/pdfExport';
 import { generateOrganisationCSV } from '../../../utils/csvExport';
 import ExportDialog from '../../../components/ExportDialog';

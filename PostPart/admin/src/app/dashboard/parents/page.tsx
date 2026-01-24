@@ -55,7 +55,7 @@ import {
   CheckCircleOutline as CheckCircleOutlineIcon,
   Description as DescriptionIcon,
 } from '@mui/icons-material';
-import type { Profile } from '../../../../../../../shared/types';
+import type { Profile } from '../../../../../shared/types';
 
 interface ParentWithMetrics extends Profile {
   organization?: { id: string; name: string; status: string };

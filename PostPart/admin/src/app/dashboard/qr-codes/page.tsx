@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../../../components/DashboardLayout';
 import { supabase } from '../../../../lib/supabase';
-import type { CenterQRCode, Center } from '../../../../../../../shared/types';
+import type { CenterQRCode, Center } from '../../../../../shared/types';
 
 export default function QRCodesPage() {
   const searchParams = useSearchParams();

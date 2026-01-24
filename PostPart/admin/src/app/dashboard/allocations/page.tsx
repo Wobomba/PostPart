@@ -15,7 +15,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import type { Allocation, Organization } from '../../../../../../../shared/types';
+import type { Allocation, Organization } from '../../../../../shared/types';
 
 export default function AllocationsPage() {
   const [allocations, setAllocations] = useState<(Allocation & { organization?: Organization })[]>([]);
