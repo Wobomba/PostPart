@@ -815,7 +815,7 @@ export default function OrganizationsPage() {
             </Typography>
             <Grid container spacing={2}>
               {quickInsights.map((insight) => (
-                <Grid key={insight.id}>
+                <Grid item xs={12} sm={6} md={4} key={insight.id}>
                   <Alert
                     severity={insight.type === 'warning' ? 'warning' : insight.type === 'success' ? 'success' : 'info'}
                     icon={getInsightIcon(insight.type)}
@@ -1206,7 +1206,7 @@ export default function OrganizationsPage() {
 
                 {/* Statistics */}
                 <Grid container spacing={2} sx={{ mb: 4 }}>
-                  <Grid>
+                  <Grid item xs={6} sm={3}>
                     <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                         Parents
@@ -1216,7 +1216,7 @@ export default function OrganizationsPage() {
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid>
+                  <Grid item xs={6} sm={3}>
                     <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                         Total Check-ins
@@ -1226,7 +1226,7 @@ export default function OrganizationsPage() {
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid>
+                  <Grid item xs={6} sm={3}>
                     <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                         Today
@@ -1236,7 +1236,7 @@ export default function OrganizationsPage() {
                       </Typography>
                     </Box>
                   </Grid>
-                  <Grid>
+                  <Grid item xs={6} sm={3}>
                     <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
                         This Week
@@ -1252,7 +1252,7 @@ export default function OrganizationsPage() {
 
                 {/* Organization Details */}
                 <Grid container spacing={3}>
-                  <Grid>
+                  <Grid item xs={12} md={6}>
                     <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
                       Basic Information
                     </Typography>
@@ -1273,7 +1273,7 @@ export default function OrganizationsPage() {
                       </Box>
                     )}
                   </Grid>
-                  <Grid>
+                  <Grid item xs={12} md={6}>
                     <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
                       Contact Information
                     </Typography>

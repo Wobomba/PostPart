@@ -9,7 +9,7 @@ import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import Link from 'next/link';
 import { supabase } from '../../../../../lib/supabase';
 import { createSlug } from '../../../../../lib/slug';
-import type { Organization } from '../../../../../../../shared/types';
+import type { Organization } from '../../../../../../shared/types';
 
 export default function EditOrganizationPage() {
   const params = useParams();
