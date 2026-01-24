@@ -524,7 +524,7 @@ export default function OrganizationsPage() {
         console.error('Error loading parent IDs:', parentIdsError);
       }
 
-      const parentIdList = parentIds?.map(p => p.id) || [];
+      const parentIdList = parentIds?.map((p: { id: string }) => p.id) || [];
       let checkInsData: any[] = [];
 
       // Only query check-ins if there are parents
