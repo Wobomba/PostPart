@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,18 +6,106 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { supabase } from '../../lib/supabase';
+import { apiRequest } from '../../lib/api';
 import { Colors, Typography, Spacing, Layout, BorderRadius } from '../../constants/theme';
 
 export default function VerifyOTPScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const email = params.email as string;
+  const phone = params.phone as string;
+  const type = (params.type as string) || 'signup';
+  const isPasswordReset = type === 'password_reset';
+  const isPhoneFlow = isPasswordReset || !!phone;
   
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(isPhoneFlow ? 10 * 60 : 60 * 60);
+
+  useEffect(() => {
+    const initialSeconds = isPhoneFlow ? 10 * 60 : 60 * 60;
+    setSecondsRemaining(initialSeconds);
+    const intervalId = setInterval(() => {
+      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [isPhoneFlow]);
+
+  const formatCountdown = (totalSeconds: number) => {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   const handleVerifyOTP = async () => {
+    if (isPhoneFlow) {
+      if (!otp || otp.length !== 6) {
+        Alert.alert('Invalid Code', 'Please enter the 6-digit code sent to your phone');
+        return;
+      }
+
+      if (!phone) {
+        Alert.alert('Error', 'Missing phone number. Please try again.');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const result = await apiRequest('auth/verify-otp', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: email?.toLowerCase().trim(),
+            phone,
+            code: otp,
+            type,
+          }),
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.error || 'Verification failed');
+        }
+
+        if (isPasswordReset) {
+          Alert.alert('Code Verified', 'You can now reset your password.', [
+            {
+              text: 'Continue',
+              onPress: () => {
+                router.replace({
+                  pathname: '/(auth)/reset-password',
+                  params: { phone, code: otp },
+                });
+              },
+            },
+          ]);
+          return;
+        }
+
+        Alert.alert('Phone Verified', 'Your phone has been verified. You can now sign in.', [
+          {
+            text: 'Sign In',
+            onPress: () => router.replace('/(auth)/login'),
+          },
+        ]);
+      } catch (error: any) {
+        console.error('OTP verification error:', error);
+        let errorMessage = 'Invalid or expired code. Please try again.';
+        if (error.message?.includes('expired')) {
+          errorMessage = 'This verification code has expired. Please request a new one.';
+        } else if (error.message?.includes('Invalid') || error.message?.includes('invalid')) {
+          errorMessage = 'Invalid verification code. Please check and try again.';
+        } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        }
+        Alert.alert('Verification Failed', errorMessage);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!otp || otp.length !== 8) {
       Alert.alert('Invalid Code', 'Please enter the 8-digit code sent to your email');
       return;
@@ -43,7 +131,7 @@ export default function VerifyOTPScreen() {
         });
 
         if (emailError) throw emailError;
-        
+
         // Email verification succeeded
         // Sync name from auth metadata to profile immediately after verification
         if (emailData?.user?.id) {
@@ -58,7 +146,7 @@ export default function VerifyOTPScreen() {
         }
 
         Alert.alert(
-          'Email Verified! ✅',
+          'Email Verified',
           'Your email has been successfully verified. You can now sign in to your account.',
           [
             {
@@ -84,7 +172,7 @@ export default function VerifyOTPScreen() {
       }
 
       Alert.alert(
-        'Email Verified! ✅',
+        'Email Verified',
         'Your email has been successfully verified. You can now sign in to your account.',
         [
           {
@@ -95,10 +183,10 @@ export default function VerifyOTPScreen() {
       );
     } catch (error: any) {
       console.error('OTP verification error:', error);
-      
+
       // Provide more helpful error messages
       let errorMessage = 'Invalid or expired code. Please try again.';
-      
+
       if (error.message?.includes('expired')) {
         errorMessage = 'This verification code has expired. Please request a new one.';
       } else if (error.message?.includes('invalid')) {
@@ -106,7 +194,7 @@ export default function VerifyOTPScreen() {
       } else if (error.message?.includes('already')) {
         errorMessage = 'This email is already verified. Please try signing in.';
       }
-      
+
       Alert.alert('Verification Failed', errorMessage);
     } finally {
       setLoading(false);
@@ -114,6 +202,48 @@ export default function VerifyOTPScreen() {
   };
 
   const handleResendOTP = async () => {
+    if (isPhoneFlow) {
+      if (!phone) {
+        Alert.alert('Error', 'Missing phone number. Please try again.');
+        return;
+      }
+
+      setResending(true);
+
+      try {
+        const result = await apiRequest('auth/send-otp', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: email?.toLowerCase().trim(),
+            phone,
+            type,
+          }),
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.error || 'Failed to resend code');
+        }
+
+        setSecondsRemaining(10 * 60);
+        Alert.alert('Code Sent', 'A new verification code has been sent to your phone.');
+      } catch (error: any) {
+        console.error('Resend OTP error:', error);
+
+        let errorMessage = 'Failed to resend verification code. Please try again later.';
+
+        if (error.message?.includes('wait 60 seconds') || error.message?.includes('429')) {
+          errorMessage = 'Please wait 60 seconds before requesting another code.';
+        } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        }
+
+        Alert.alert('Error', errorMessage);
+      } finally {
+        setResending(false);
+      }
+      return;
+    }
+
     setResending(true);
 
     try {
@@ -139,7 +269,8 @@ export default function VerifyOTPScreen() {
         return;
       }
 
-      Alert.alert('Code Sent! 📧', 'A new verification code has been sent to your email.');
+      setSecondsRemaining(60 * 60);
+      Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
     } catch (error: any) {
       console.error('Resend OTP error:', error);
       Alert.alert(
@@ -156,30 +287,34 @@ export default function VerifyOTPScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <Ionicons name="mail" size={48} color={Colors.primary} />
+            <Ionicons name={isPhoneFlow ? 'call' : 'mail'} size={48} color={Colors.primary} />
           </View>
-          <Text style={styles.title}>Verify Your Email</Text>
-          <Text style={styles.subtitle}>
-            We sent an 8-digit verification code to:
+          <Text style={styles.title}>
+            {isPhoneFlow ? 'Verify Your Phone' : 'Verify Your Email'}
           </Text>
-          <Text style={styles.email}>{email}</Text>
+          <Text style={styles.subtitle}>
+            {isPhoneFlow
+              ? 'We sent a 6-digit verification code to:'
+              : 'We sent an 8-digit verification code to:'}
+          </Text>
+          <Text style={styles.email}>{isPhoneFlow ? phone : email}</Text>
         </View>
 
         <View style={styles.form}>
           <Input
             label="Verification Code"
-            placeholder="Enter 8-digit code"
+            placeholder={isPhoneFlow ? 'Enter 6-digit code' : 'Enter 8-digit code'}
             value={otp}
             onChangeText={setOtp}
             keyboardType="number-pad"
-            maxLength={8}
+            maxLength={isPhoneFlow ? 6 : 8}
             autoCapitalize="none"
             autoComplete="one-time-code"
             style={styles.otpInput}
           />
 
           <Button
-            title="Verify Email"
+            title={isPhoneFlow ? 'Verify Phone' : 'Verify Email'}
             onPress={handleVerifyOTP}
             loading={loading}
             fullWidth
@@ -213,7 +348,9 @@ export default function VerifyOTPScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            The code will expire in 60 minutes. Make sure to check your spam folder if you don't see the email.
+            {secondsRemaining > 0
+              ? `Code expires in ${formatCountdown(secondsRemaining)}.`
+              : 'This code has expired. Request a new one.'}
           </Text>
         </View>
       </ScrollView>
