@@ -3,13 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 // Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://etajqqnejfolsmslbsom.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-key-for-build';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Africa's Talking credentials
-const AT_API_KEY = process.env.AFRICAS_TALKING_API_KEY!;
-const AT_USERNAME = process.env.AFRICAS_TALKING_USERNAME!;
+const AT_API_KEY = process.env.AFRICAS_TALKING_API_KEY || '';
+const AT_USERNAME = process.env.AFRICAS_TALKING_USERNAME || '';
 const AT_SENDER_ID = process.env.AFRICAS_TALKING_SENDER_ID || process.env.AFRICAS_TALKING_FROM;
 
 const normalizePhone = (rawPhone: string) => {
