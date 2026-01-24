@@ -564,14 +564,18 @@ export default function OrganizationsPage() {
             .order('check_in_time', { ascending: false })
             .limit(10);
           
-          checkInsData = (simpleCheckIns || []) as CheckInData[];
+          if (simpleCheckIns) {
+            checkInsData = simpleCheckIns as CheckInData[];
+          }
         } else {
-          checkInsData = (checkIns || []) as CheckInData[];
+          if (checkIns) {
+            checkInsData = checkIns as CheckInData[];
+          }
         }
       }
 
       setViewParents(parentsData || []);
-      setViewRecentCheckIns(checkInsData || []);
+      setViewRecentCheckIns(checkInsData);
     } catch (error) {
       console.error('Error loading view data:', error);
       // Set empty arrays on error to prevent UI issues
