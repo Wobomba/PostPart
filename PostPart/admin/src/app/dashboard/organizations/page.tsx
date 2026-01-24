@@ -554,9 +554,9 @@ export default function OrganizationsPage() {
             .order('check_in_time', { ascending: false })
             .limit(10);
           
-          checkInsData = (simpleCheckIns as any[]) || [];
+          checkInsData = (simpleCheckIns || []) as any[];
         } else {
-          checkInsData = (checkIns as any[]) || [];
+          checkInsData = (checkIns || []) as any[];
         }
       }
 
