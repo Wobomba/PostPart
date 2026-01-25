@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase';
+import { supabase, safeGetUser } from '../../lib/supabase';
 import { UserRole } from '../../shared/types';
 
 interface UseAdminAuthReturn {
@@ -36,7 +36,7 @@ export function useAdminAuth(): UseAdminAuthReturn {
       // Handle token refresh errors
       if (event === 'TOKEN_REFRESHED' && !session) {
         console.warn('Token refresh failed, signing out');
-        await supabase.auth.signOut();
+        await supabase.auth.signOut().catch(() => {});
         setIsAuthenticated(false);
         setIsAdmin(false);
         setUserRole(null);
@@ -44,12 +44,19 @@ export function useAdminAuth(): UseAdminAuthReturn {
         return;
       }
       
-      if (!session) {
+      // Handle SIGNED_OUT event (could be due to refresh token error)
+      if (event === 'SIGNED_OUT' || !session) {
         setIsAuthenticated(false);
         setIsAdmin(false);
         setUserRole(null);
-        router.push('/auth/login');
-      } else {
+        if (event === 'SIGNED_OUT') {
+          router.push('/auth/login');
+        }
+        return;
+      }
+      
+      // Session exists, verify auth
+      if (session) {
         checkAuth();
       }
     });
@@ -63,28 +70,19 @@ export function useAdminAuth(): UseAdminAuthReturn {
     try {
       setCheckingAuth(true);
 
-      // Check if user is authenticated
-      const {
-        data: { user },
-        error: getUserError,
-      } = await supabase.auth.getUser();
+      // Check if user is authenticated using safeGetUser for refresh token error handling
+      const { user, error: getUserError } = await safeGetUser();
 
-      // Handle refresh token errors
+      // Handle refresh token errors (safeGetUser already handles these, but check anyway)
       if (getUserError) {
-        // If it's a refresh token error, clear the session
-        if (getUserError.message?.includes('Refresh Token') || getUserError.message?.includes('refresh_token')) {
-          console.warn('Invalid refresh token, clearing session:', getUserError.message);
-          await supabase.auth.signOut();
-          setIsAuthenticated(false);
-          setIsAdmin(false);
-          setUserRole(null);
-          setCheckingAuth(false);
-          setLoading(false);
-          router.push('/auth/login');
-          return;
-        }
-        // For other errors, still redirect to login
-        throw getUserError;
+        // safeGetUser already cleared the session for refresh token errors
+        setIsAuthenticated(false);
+        setIsAdmin(false);
+        setUserRole(null);
+        setCheckingAuth(false);
+        setLoading(false);
+        router.push('/auth/login');
+        return;
       }
 
       if (!user) {
