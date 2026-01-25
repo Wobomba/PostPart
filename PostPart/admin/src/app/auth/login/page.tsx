@@ -81,15 +81,15 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white py-16 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-10">
+      <div className="max-w-2xl w-full space-y-10">
         <div className="text-center">
           <img
             src="/postpart-logo.png"
             alt="PostPart Admin"
             className="mx-auto mb-6"
-            style={{ width: '400px', height: 'auto', maxWidth: '100%' }}
+            style={{ width: '600px', height: 'auto', maxWidth: '100%' }}
           />
-          <p className="text-base text-gray-600">
+          <p className="text-base text-gray-600 mt-4">
             Sign in to access the admin dashboard
           </p>
         </div>
