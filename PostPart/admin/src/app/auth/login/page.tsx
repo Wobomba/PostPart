@@ -87,7 +87,7 @@ export default function LoginPage() {
             src="/postpart-logo.png"
             alt="PostPart Admin"
             className="mx-auto mb-6"
-            style={{ width: '600px', height: 'auto', maxWidth: '100%' }}
+            style={{ width: '450px', height: 'auto', maxWidth: '100%' }}
           />
           <p className="text-base text-gray-600 mt-4">
             Sign in to access the admin dashboard
