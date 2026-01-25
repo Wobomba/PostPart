@@ -85,12 +85,11 @@ export default function LoginPage() {
         <div className="text-center">
           <img
             src="/postpart-logo.png"
-            alt="PostPart"
-            width={80}
-            height={80}
+            alt="PostPart Admin"
+            width={200}
+            height={200}
             className="mx-auto mb-6"
           />
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">PostPart Admin</h2>
           <p className="text-base text-gray-600">
             Sign in to access the admin dashboard
           </p>
