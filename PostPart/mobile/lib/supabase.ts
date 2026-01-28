@@ -3,8 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = 'https://etajqqnejfolsmslbsom.supabase.co';
-const supabaseAnonKey = 'sb_publishable_cYiDAK6i1o8iwn5nOtHezw_5x0QwZzb';
+// Use environment variables if available, otherwise fall back to hardcoded values
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://etajqqnejfolsmslbsom.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_cYiDAK6i1o8iwn5nOtHezw_5x0QwZzb';
+
+console.log('[Supabase] Initializing with URL:', supabaseUrl);
+console.log('[Supabase] Anon key present:', !!supabaseAnonKey);
 
 // Platform-specific storage
 const getStorage = () => {
