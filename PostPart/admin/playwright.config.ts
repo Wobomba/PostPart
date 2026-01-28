@@ -11,18 +11,19 @@ import { defineConfig, devices } from '@playwright/test';
  * 
  * Browser Options:
  * - chromium: Playwright's Chromium (recommended, same engine as Brave)
- * - brave: Your installed Brave browser (Chromium-based)
+ * - brave: Your installed Brave browser (may have compatibility issues)
  * - firefox: Firefox browser
  * - webkit: Safari/WebKit browser
  * 
- * Run specific browser: npm run test:brave
+ * Note: Brave is Chromium-based, so using 'chromium' project gives the same results.
+ * The 'brave' project uses your installed Brave, but may require additional setup.
  */
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: false, // Run tests sequentially to avoid multiple tabs and auth conflicts
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1, // Use single worker to prevent multiple browser instances
   reporter: 'html',
   
   use: {
@@ -45,8 +46,9 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         // Use Brave browser executable (Chromium-based)
-        // Brave is installed via snap, path may vary by version
-        // Set BRAVE_PATH environment variable if path differs
+        // Note: This may have compatibility issues. Consider using 'chromium' instead.
+        // If Brave doesn't work, use: npm run test (uses Chromium, same engine)
+        channel: undefined,
         executablePath: process.env.BRAVE_PATH || '/snap/brave/current/opt/brave.com/brave/brave',
       },
     },
