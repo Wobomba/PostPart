@@ -11,6 +11,7 @@
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
+    "test:brave": "playwright test --project=brave",
     "test:auth": "playwright test tests/auth.spec.ts",
     "test:dashboard": "playwright test tests/dashboard.spec.ts",
     "test:organizations": "playwright test tests/organizations.spec.ts",

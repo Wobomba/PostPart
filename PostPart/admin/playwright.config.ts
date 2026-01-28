@@ -8,6 +8,14 @@ import { defineConfig, devices } from '@playwright/test';
  * 2. In another terminal: npm run test
  * 
  * Or let Playwright start the server automatically (configured below)
+ * 
+ * Browser Options:
+ * - chromium: Playwright's Chromium (recommended, same engine as Brave)
+ * - brave: Your installed Brave browser (Chromium-based)
+ * - firefox: Firefox browser
+ * - webkit: Safari/WebKit browser
+ * 
+ * Run specific browser: npm run test:brave
  */
 export default defineConfig({
   testDir: './tests',
@@ -31,6 +39,16 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'brave',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Use Brave browser executable (Chromium-based)
+        // Brave is installed via snap, path may vary by version
+        // Set BRAVE_PATH environment variable if path differs
+        executablePath: process.env.BRAVE_PATH || '/snap/brave/current/opt/brave.com/brave/brave',
+      },
     },
     {
       name: 'firefox',
