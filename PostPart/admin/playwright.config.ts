@@ -18,7 +18,10 @@ export default defineConfig({
   reporter: 'html',
   
   use: {
-    baseURL: 'http://localhost:3000',
+    // Allow testing from different machines on the network
+    // Set BASE_URL environment variable to test from another machine
+    // Example: BASE_URL=http://192.168.1.100:3000 npm run test
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -39,7 +42,8 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
+  // Only start web server if testing locally (not from remote machine)
+  webServer: process.env.BASE_URL ? undefined : {
     command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
