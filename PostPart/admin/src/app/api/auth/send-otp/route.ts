@@ -192,13 +192,26 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      // Log what we're sending to Africa's Talking
+      console.log('Sending SMS via Africa\'s Talking:', {
+        to: normalizedPhone,
+        username: AT_USERNAME,
+        senderId: AT_SENDER_ID || 'None (will use default)',
+        messageLength: `Your PostPart verification code is: ${otp}. Valid for 10 minutes.`.length,
+      });
+      
       const smsBody = new URLSearchParams({
         username: AT_USERNAME,
         to: normalizedPhone,
         message: `Your PostPart verification code is: ${otp}. Valid for 10 minutes.`,
       });
+      
+      // Sender ID is important - if not set or invalid, delivery may fail
       if (AT_SENDER_ID) {
         smsBody.append('from', AT_SENDER_ID);
+        console.log('Using sender ID:', AT_SENDER_ID);
+      } else {
+        console.warn('No sender ID configured - Africa\'s Talking will use default');
       }
 
       const smsResponse = await fetch('https://api.africastalking.com/version1/messaging', {
@@ -237,26 +250,75 @@ export async function POST(request: NextRequest) {
       }
 
       const smsResult = await smsResponse.json();
-      console.log('Africa\'s Talking API response:', smsResult);
-
+      
+      // Enhanced logging for debugging delivery issues
+      console.log('Africa\'s Talking API response:', JSON.stringify(smsResult, null, 2));
+      console.log('Phone number sent to Africa\'s Talking:', normalizedPhone);
+      console.log('Sender ID used:', AT_SENDER_ID || 'None (default)');
+      
       // Check if SMS was sent successfully
-      const recipientStatus = smsResult.SMSMessageData?.Recipients?.[0]?.status;
+      const recipients = smsResult.SMSMessageData?.Recipients || [];
+      const recipientStatus = recipients[0]?.status;
+      const recipientNumber = recipients[0]?.number;
+      const recipientCost = recipients[0]?.cost;
+      const recipientMessageId = recipients[0]?.messageId;
+      
+      // Log detailed recipient information
+      console.log('Recipient details:', {
+        status: recipientStatus,
+        number: recipientNumber,
+        cost: recipientCost,
+        messageId: recipientMessageId,
+        statusCode: recipients[0]?.statusCode,
+      });
+      
+      // Africa's Talking status values:
+      // "Success" - Message accepted and queued for delivery
+      // "InvalidPhoneNumber" - Phone number is invalid
+      // "InsufficientBalance" - Account doesn't have enough credits
+      // "UserInBlacklist" - Phone number is blacklisted
+      // "CouldNotSend" - General send failure
+      
       if (recipientStatus !== 'Success') {
         console.error('Africa\'s Talking SMS failed:', {
           status: recipientStatus,
+          statusCode: recipients[0]?.statusCode,
           fullResponse: smsResult,
+          phoneNumber: normalizedPhone,
         });
+
+        // Provide more specific error messages
+        let errorMessage = 'Failed to send SMS. Please check your phone number and try again.';
+        if (recipientStatus === 'InvalidPhoneNumber') {
+          errorMessage = 'Invalid phone number format. Please check and try again.';
+        } else if (recipientStatus === 'InsufficientBalance') {
+          errorMessage = 'SMS service temporarily unavailable. Please try again later.';
+        } else if (recipientStatus === 'UserInBlacklist') {
+          errorMessage = 'This phone number cannot receive SMS messages.';
+        }
 
         return NextResponse.json(
           {
-            error: 'Failed to send SMS. Please check your phone number and try again.',
-            details: smsResult,
+            error: errorMessage,
+            details: {
+              status: recipientStatus,
+              statusCode: recipients[0]?.statusCode,
+              phoneNumber: normalizedPhone,
+            },
           },
           { status: 500, headers: corsHeaders }
         );
       }
 
-      console.log('OTP sent successfully to', normalizedPhone);
+      // Even if status is "Success", log for debugging
+      console.log('OTP sent successfully to', normalizedPhone, {
+        messageId: recipientMessageId,
+        cost: recipientCost,
+        status: recipientStatus,
+      });
+      
+      // Note: "Success" means message was queued, not necessarily delivered
+      // Actual delivery status can be checked via webhooks or delivery reports
 
       return NextResponse.json(
         {
