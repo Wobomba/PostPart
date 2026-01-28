@@ -192,9 +192,16 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      // Africa's Talking requires phone numbers WITHOUT the + sign
+      // Remove + prefix if present (e.g., +256700123456 -> 256700123456)
+      const phoneForAT = normalizedPhone.startsWith('+') 
+        ? normalizedPhone.substring(1) 
+        : normalizedPhone;
+      
       // Log what we're sending to Africa's Talking
       console.log('Sending SMS via Africa\'s Talking:', {
-        to: normalizedPhone,
+        originalPhone: normalizedPhone,
+        phoneForAT: phoneForAT,
         username: AT_USERNAME,
         senderId: AT_SENDER_ID || 'None (will use default)',
         messageLength: `Your PostPart verification code is: ${otp}. Valid for 10 minutes.`.length,
@@ -202,7 +209,7 @@ export async function POST(request: NextRequest) {
       
       const smsBody = new URLSearchParams({
         username: AT_USERNAME,
-        to: normalizedPhone,
+        to: phoneForAT, // Send without + prefix
         message: `Your PostPart verification code is: ${otp}. Valid for 10 minutes.`,
       });
       
@@ -253,7 +260,7 @@ export async function POST(request: NextRequest) {
       
       // Enhanced logging for debugging delivery issues
       console.log('Africa\'s Talking API response:', JSON.stringify(smsResult, null, 2));
-      console.log('Phone number sent to Africa\'s Talking:', normalizedPhone);
+      console.log('Phone number sent to Africa\'s Talking:', phoneForAT, '(original:', normalizedPhone, ')');
       console.log('Sender ID used:', AT_SENDER_ID || 'None (default)');
       
       // Check if SMS was sent successfully
@@ -311,7 +318,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Even if status is "Success", log for debugging
-      console.log('OTP sent successfully to', normalizedPhone, {
+      console.log('OTP sent successfully to', phoneForAT, '(original:', normalizedPhone, ')', {
         messageId: recipientMessageId,
         cost: recipientCost,
         status: recipientStatus,
