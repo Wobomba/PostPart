@@ -48,8 +48,8 @@ export default defineConfig({
         // Use Brave browser executable (Chromium-based)
         // Note: This may have compatibility issues. Consider using 'chromium' instead.
         // If Brave doesn't work, use: npm run test (uses Chromium, same engine)
-        channel: undefined,
-        executablePath: process.env.BRAVE_PATH || '/snap/brave/current/opt/brave.com/brave/brave',
+        // Note: executablePath is not supported in Playwright's use options
+        // Use channel: 'chrome' or install Playwright's Chromium instead
       },
     },
     {
