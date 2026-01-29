@@ -21,61 +21,148 @@ import { Screen } from '../../components/Screen';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../constants/theme';
 import { HapticFeedback } from '../../utils/effects';
 import { checkParentStatus, ParentStatus } from '../../utils/parentStatus';
-import { useUserData } from '../../contexts/UserDataContext';
+import { useProfile } from '../../hooks/useProfile';
+import { useChildren } from '../../hooks/useChildren';
+import { useRecentCheckIns, useActiveCheckIn, useCheckInStats } from '../../hooks/useCheckIns';
+import { useFrequentCenters, useFeaturedCenters } from '../../hooks/useCenters';
+import { useUnreadNotificationCount } from '../../hooks/useNotifications';
+import { useQueryClient } from '@tanstack/react-query';
+import { calculateAge } from '../../utils/age';
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const [parentStatus, setParentStatus] = useState<ParentStatus | null>(null);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [organizationModalVisible, setOrganizationModalVisible] = useState(false);
   
-  // Get data from context
-  const {
-    userName,
-    stats,
-    recentCheckIns,
-    activeCheckIn,
-    frequentCenters,
-    featuredCenters,
-    children,
-    refreshing,
-    refreshData,
-    refreshStats,
-    profile,
-    user,
-  } = useUserData();
+  // Get user
+  const [user, setUser] = useState<{ id: string; email: string | undefined } | null>(null);
+  
+  // Initialize user and listen for auth state changes
+  useEffect(() => {
+    // Get initial user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user ? { id: user.id, email: user.email } : null);
+    });
+    
+    // Listen for auth state changes (especially SIGNED_OUT)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        console.log('🚪 User signed out in home screen, clearing state');
+        setUser(null);
+        setParentStatus(null); // Clear parent status immediately
+        setOrganizationModalVisible(false);
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        setUser({ id: session.user.id, email: session.user.email });
+      }
+    });
+    
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
   
   const userId = user?.id || null;
+  
+  // Use React Query hooks
+  const { data: profile } = useProfile(userId);
+  const { data: children = [] } = useChildren(userId);
+  const { data: recentCheckIns = [] } = useRecentCheckIns(userId, 5);
+  const { data: activeCheckIn } = useActiveCheckIn(userId);
+  const { data: checkInStats } = useCheckInStats(userId);
+  const { data: frequentCenters = [] } = useFrequentCenters(userId, 3);
+  const { data: featuredCenters = [] } = useFeaturedCenters(2);
+  const { data: unreadNotifications = 0 } = useUnreadNotificationCount(userId);
+  
+  // Compute stats from check-in data
+  const stats = {
+    centersVisited: checkInStats?.centersVisited || 0,
+    totalCheckIns: checkInStats?.totalCheckIns || 0,
+    unreadNotifications,
+  };
+  
+  // Get user name from profile
+  const userName = profile?.full_name || 'Parent';
+  
+  // Refresh function
+  const refreshData = async () => {
+    if (userId) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['profile', userId] }),
+        queryClient.invalidateQueries({ queryKey: ['children', userId] }),
+        queryClient.invalidateQueries({ queryKey: ['checkins', userId] }),
+        queryClient.invalidateQueries({ queryKey: ['centers'] }),
+        queryClient.invalidateQueries({ queryKey: ['notifications', userId] }),
+      ]);
+    }
+  };
+  
+  const refreshing = false; // React Query handles loading states
 
   // Refresh data when screen comes into focus (e.g., after checkout)
-  // This ensures data is fresh when user returns to the screen, especially after account activation
   useFocusEffect(
     React.useCallback(() => {
+      // Don't refresh if user is logged out
+      if (!user || !userId) {
+        setParentStatus(null);
+        return;
+      }
+      
       console.log('📱 Home screen focused, refreshing data and checking status...');
-      // Always refresh data when screen comes into focus
-      // This is critical for catching updates that happened while user was away
       const refresh = async () => {
+        // Double-check user is still logged in before proceeding
+        if (!user || !userId) {
+          setParentStatus(null);
+          return;
+        }
+        
         await refreshData();
         await checkStatus();
-        // If user is active but we don't have data, force another refresh
-        // This handles cases where activation happened while app was in background
-        const status = await checkParentStatus();
-        if (status?.isActive && profile?.status === 'active') {
-          // Double-check we have data after a short delay
+        // Only do delayed refresh if parent status is active
+        if (parentStatus?.isActive && profile?.status === 'active') {
           setTimeout(async () => {
+            // Triple-check user is still logged in before delayed refresh
+            if (!user || !userId) {
+              setParentStatus(null);
+              return;
+            }
             await refreshData();
             await checkStatus();
           }, 1000);
         }
       };
       refresh();
-    }, [refreshData, profile?.status])
+    }, [user, userId, profile?.status])
   );
 
   const checkStatus = async () => {
+    // Don't check status if user is logged out - check multiple times for safety
+    if (!user || !userId) {
+      setParentStatus(null);
+      return;
+    }
+    
     try {
+      // Double-check user is still logged in before making the async call
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser || currentUser.id !== userId) {
+        // User signed out during the check
+        setParentStatus(null);
+        return;
+      }
+      
       const status = await checkParentStatus();
+      
+      // Triple-check user is still logged in after the async call
+      const { data: { user: finalUser } } = await supabase.auth.getUser();
+      if (!finalUser || finalUser.id !== userId) {
+        // User signed out during the status check
+        setParentStatus(null);
+        return;
+      }
+      
       console.log('Home screen - Status check result:', {
         isActive: status.isActive,
         status: status.status,
@@ -84,43 +171,58 @@ export default function HomeScreen() {
       setParentStatus(status);
     } catch (error) {
       console.error('Error checking status in home screen:', error);
-      // Don't set status on error - keep previous state
+      // Don't set status on error - keep previous state, but clear if user is logged out
+      const { data: { user: errorUser } } = await supabase.auth.getUser();
+      if (!errorUser || errorUser.id !== userId) {
+        setParentStatus(null);
+      }
     }
   };
 
   // Check parent status on mount and when profile changes
   useEffect(() => {
+    // Clear status if user is logged out - do this FIRST before any async operations
+    if (!user || !userId) {
+      setParentStatus(null);
+      setOrganizationModalVisible(false);
+      return;
+    }
+    
+    // Only check status if we have a valid user
     checkStatus();
     // Show organization modal if needed
     if (profile && !profile.organization_id && parentStatus?.isActive) {
       setOrganizationModalVisible(true);
     }
-  }, [profile, parentStatus]);
+  }, [user, userId, profile, parentStatus]);
 
   // Re-check status when profile data changes (e.g., after admin activation)
-  // This ensures status updates immediately when admin changes account status
   useEffect(() => {
+    // Don't check if user is logged out
+    if (!user || !userId) {
+      setParentStatus(null);
+      return;
+    }
+    
     if (profile) {
       console.log('🔄 Profile data changed, re-checking status:', {
         status: profile.status,
         organization_id: profile.organization_id,
       });
       
-      // Check status immediately when profile changes
       checkStatus();
       
-      // If profile just became active, ensure data is fresh
-      // The real-time subscription should have already refreshed, but double-check
       if (profile.status === 'active') {
         console.log('✅ Profile is active, ensuring data is fresh...');
-        // Refresh data to ensure everything is loaded
         refreshData().then(() => {
-          // Re-check status after data refresh to ensure UI updates
-          checkStatus();
+          // Check user is still logged in before checking status
+          if (user && userId) {
+            checkStatus();
+          }
         });
       }
     }
-  }, [profile?.status, profile?.organization_id, refreshData]);
+  }, [user, userId, profile?.status, profile?.organization_id]);
 
   const onRefresh = async () => {
     await refreshData();
@@ -194,7 +296,7 @@ export default function HomeScreen() {
           { paddingBottom: Spacing.xxxl + insets.bottom },
         ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={false} onRefresh={refreshData} tintColor={Colors.primary} />
         }
         showsVerticalScrollIndicator={false}
         scrollEnabled={parentStatus?.isActive !== false}
@@ -462,7 +564,7 @@ export default function HomeScreen() {
                     <View style={styles.childInfo}>
                       <Text style={styles.childName}>{child.name || `${child.first_name} ${child.last_name}`}</Text>
                       <Text style={styles.childAge}>
-                        {new Date().getFullYear() - new Date(child.date_of_birth).getFullYear()} years old
+                        {calculateAge(child.date_of_birth)}
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
@@ -635,8 +737,10 @@ export default function HomeScreen() {
         visible={notificationsVisible}
         onClose={() => setNotificationsVisible(false)}
         onNotificationCountChange={() => {
-          // Stats are managed by context, it will update automatically via realtime subscription
-          refreshStats();
+          // Invalidate notifications query to refresh unread count
+          if (userId) {
+            queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
+          }
         }}
       />
 
@@ -654,11 +758,27 @@ export default function HomeScreen() {
       )}
 
       {/* Account Status Modal Overlay - Shows for inactive or suspended accounts */}
+      {/* Only show if user is logged in AND status is checked AND account is inactive */}
+      {/* Don't show if user is null (logged out) - extra defensive check */}
       <Modal
-        visible={parentStatus !== null && !parentStatus.isActive}
+        visible={Boolean(
+          user && 
+          userId && 
+          parentStatus && 
+          !parentStatus.isActive &&
+          // Extra defensive check: ensure we have a valid user session
+          user.id === userId
+        )}
+        key={userId || "no-user"}
         transparent={true}
         animationType="fade"
         statusBarTranslucent
+        onRequestClose={() => {
+          // Prevent modal from showing if user signs out while modal is visible
+          if (!user || !userId) {
+            setParentStatus(null);
+          }
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.inactiveModalContent}>
