@@ -19,11 +19,20 @@ export default function CheckInScreen() {
   
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const [servicesOffered, setServicesOffered] = useState<string[]>([]);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [loadingServices, setLoadingServices] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadChildren();
   }, []);
+
+  useEffect(() => {
+    if (centerId) {
+      loadCenterServices();
+    }
+  }, [centerId]);
 
   const loadChildren = async () => {
     try {
@@ -49,9 +58,33 @@ export default function CheckInScreen() {
     }
   };
 
+  const loadCenterServices = async () => {
+    try {
+      setLoadingServices(true);
+      const { data, error } = await supabase
+        .from('centers')
+        .select('services_offered')
+        .eq('id', centerId)
+        .single();
+
+      if (error) throw error;
+      setServicesOffered(data?.services_offered || []);
+    } catch (error) {
+      console.error('Error loading center services:', error);
+      setServicesOffered([]);
+    } finally {
+      setLoadingServices(false);
+    }
+  };
+
   const handleCheckIn = async () => {
     if (!selectedChildId) {
       Alert.alert('Select Child', 'Please select which child you are checking in');
+      return;
+    }
+
+    if (servicesOffered.length > 0 && !selectedService) {
+      Alert.alert('Select Service', 'Please select the service you want to use today');
       return;
     }
 
@@ -80,6 +113,7 @@ export default function CheckInScreen() {
           child_id: selectedChildId,
           qr_code_id: qrCodeId,
           check_in_time: new Date().toISOString(),
+          notes: selectedService ? `Service: ${selectedService}` : null,
         })
         .select()
         .single();
@@ -93,6 +127,7 @@ export default function CheckInScreen() {
           centerName,
           childId: selectedChildId,
           checkInTime: checkinData.check_in_time,
+          serviceName: selectedService || undefined,
         },
       });
     } catch (error: any) {
@@ -180,12 +215,45 @@ export default function CheckInScreen() {
           </View>
         )}
 
+        {loadingServices ? (
+          <Card style={styles.infoCard}>
+            <Text style={styles.infoText}>Loading available services...</Text>
+          </Card>
+        ) : servicesOffered.length > 0 ? (
+          <>
+            <Card style={styles.infoCard}>
+              <Text style={styles.infoText}>
+                Select the service you want to use today
+              </Text>
+            </Card>
+            <View style={styles.servicesContainer}>
+              {servicesOffered.map((service) => (
+                <Card
+                  key={service}
+                  style={[
+                    styles.serviceCard,
+                    selectedService === service && styles.serviceCardSelected,
+                  ]}
+                  onPress={() => setSelectedService(service)}
+                >
+                  <View style={styles.serviceContent}>
+                    <Text style={styles.serviceName}>{service}</Text>
+                    {selectedService === service && (
+                      <Text style={styles.checkmark}>✓</Text>
+                    )}
+                  </View>
+                </Card>
+              ))}
+            </View>
+          </>
+        ) : null}
+
         <View style={styles.footer}>
           <Button
             title="Complete Check-In"
             onPress={handleCheckIn}
             loading={loading}
-            disabled={!selectedChildId}
+            disabled={!selectedChildId || (servicesOffered.length > 0 && !selectedService)}
             fullWidth
             size="large"
           />
@@ -267,6 +335,9 @@ const styles = StyleSheet.create({
   childrenContainer: {
     marginBottom: Spacing.lg,
   },
+  servicesContainer: {
+    marginBottom: Spacing.lg,
+  },
   childCard: {
     marginBottom: Spacing.md,
   },
@@ -274,13 +345,31 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.primary,
   },
+  serviceCard: {
+    marginBottom: Spacing.md,
+  },
+  serviceCardSelected: {
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
   childContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  serviceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   childEmoji: {
     fontSize: 32,
     marginRight: Spacing.md,
+  },
+  serviceName: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.text,
+    flex: 1,
   },
   childInfo: {
     flex: 1,
