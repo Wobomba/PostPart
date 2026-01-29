@@ -95,6 +95,31 @@ export function DatePicker({
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 19 }, (_, i) => currentYear - i);
 
+    // Web-compatible inline styles for select elements (avoiding React Native style validation)
+    const webSelectStyle: any = {
+      width: '100%',
+      paddingTop: 12,
+      paddingBottom: 12,
+      paddingLeft: 16,
+      paddingRight: 40,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      borderColor: Colors.border,
+      borderRadius: BorderRadius.md,
+      fontSize: Typography.fontSize.base,
+      fontFamily: 'inherit',
+      backgroundColor: Colors.surface,
+      color: Colors.text,
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      MozAppearance: 'none',
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${encodeURIComponent(Colors.primary)}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: `calc(100% - 12px) center`,
+    };
+
     return (
       <View style={styles.container}>
         {label && (
@@ -192,7 +217,7 @@ export function DatePicker({
                         const newDay = parseInt(e.target.value);
                         setTempDay(newDay);
                       }}
-                      style={styles.webSelect}
+                      style={webSelectStyle}
                       onFocus={(e: any) => {
                         e.target.style.borderColor = Colors.primary;
                         e.target.style.boxShadow = `0 0 0 2px ${Colors.primary}20`;
@@ -233,14 +258,13 @@ export function DatePicker({
                         }
                       }}
                       style={{
-                        ...styles.webSelect,
+                        ...webSelectStyle,
                         color: Colors.text,
                         borderColor: Colors.border,
                       }}
                       onFocus={(e: any) => {
                         e.target.style.borderColor = Colors.primary;
                         e.target.style.boxShadow = `0 0 0 2px ${Colors.primary}20`;
-                        e.target.style.outline = 'none';
                       }}
                       onBlur={(e: any) => {
                         e.target.style.borderColor = Colors.border;
@@ -280,14 +304,13 @@ export function DatePicker({
                         }
                       }}
                       style={{
-                        ...styles.webSelect,
+                        ...webSelectStyle,
                         color: Colors.text,
                         borderColor: Colors.border,
                       }}
                       onFocus={(e: any) => {
                         e.target.style.borderColor = Colors.primary;
                         e.target.style.boxShadow = `0 0 0 2px ${Colors.primary}20`;
-                        e.target.style.outline = 'none';
                       }}
                       onBlur={(e: any) => {
                         e.target.style.borderColor = Colors.border;
@@ -546,30 +569,6 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.text,
     marginBottom: Spacing.sm,
-  },
-  webSelect: {
-    width: '100%',
-    padding: '12px 16px',
-    border: `1px solid ${Colors.border}`,
-    borderRadius: BorderRadius.md,
-    fontSize: Typography.fontSize.base,
-    fontFamily: 'inherit',
-    backgroundColor: Colors.surface,
-    color: Colors.text,
-    outline: 'none',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    // Custom styling for select dropdown
-    appearance: 'none',
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='${encodeURIComponent(Colors.primary)}' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 12px center',
-    paddingRight: '40px',
-    // Remove default blue focus outline and use pink
-    '&:focus': {
-      borderColor: Colors.primary,
-      boxShadow: `0 0 0 2px ${Colors.primary}20`,
-    },
   },
 });
 
