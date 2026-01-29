@@ -14,8 +14,15 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
 } from '@mui/material';
-import type { Allocation, Organization } from '../../../../../shared/types';
+import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import type { Allocation, Organization } from '../../../shared/types';
 
 export default function AllocationsPage() {
   const [allocations, setAllocations] = useState<(Allocation & { organization?: Organization })[]>([]);
@@ -30,6 +37,9 @@ export default function AllocationsPage() {
     visit_limit: 20,
     period: 'monthly' as 'monthly' | 'quarterly' | 'annually',
   });
+  const [editingAllocation, setEditingAllocation] = useState<(Allocation & { organization?: Organization }) | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [allocationToDelete, setAllocationToDelete] = useState<(Allocation & { organization?: Organization }) | null>(null);
 
   useEffect(() => {
     loadData();
@@ -75,6 +85,51 @@ export default function AllocationsPage() {
     }
   };
 
+  const handleEditAllocation = (allocation: Allocation & { organization?: Organization }) => {
+    setEditingAllocation(allocation);
+    setFormData({
+      organization_id: allocation.organization_id,
+      visit_limit: allocation.visit_limit,
+      period: allocation.period,
+    });
+    setShowForm(true);
+    setError(null);
+    setSuccess(null);
+  };
+
+  const handleDeleteAllocation = (allocation: Allocation & { organization?: Organization }) => {
+    setAllocationToDelete(allocation);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteAllocation = async () => {
+    if (!allocationToDelete) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const { error } = await supabase
+        .from('allocations')
+        .delete()
+        .eq('id', allocationToDelete.id);
+
+      if (error) throw error;
+
+      setSuccess('Allocation deleted successfully!');
+      setDeleteDialogOpen(false);
+      setAllocationToDelete(null);
+      loadData();
+
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (error: any) {
+      console.error('Error deleting allocation:', error);
+      setError(error.message || 'Failed to delete allocation');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCreateAllocation = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -108,34 +163,58 @@ export default function AllocationsPage() {
           break;
       }
 
-      const allocationData = {
-        organization_id: formData.organization_id,
-        visit_limit: formData.visit_limit,
-        period: formData.period,
-        period_start_date: currentDate.toISOString().split('T')[0],
-        period_end_date: endDate.toISOString().split('T')[0],
-        visits_used: 0,
-      };
+      if (editingAllocation) {
+        // Update existing allocation
+        const { data, error } = await supabase
+          .from('allocations')
+          .update({
+            organization_id: formData.organization_id,
+            visit_limit: formData.visit_limit,
+            period: formData.period,
+          })
+          .eq('id', editingAllocation.id)
+          .select()
+          .single();
 
-      console.log('Creating allocation with data:', allocationData);
+        if (error) {
+          console.error('Allocation update error:', error);
+          throw error;
+        }
 
-      const { data, error } = await supabase
-        .from('allocations')
-        .insert(allocationData)
-        .select()
-        .single();
+        console.log('Allocation updated successfully:', data);
+        setSuccess('Allocation updated successfully!');
+      } else {
+        // Create new allocation
+        const allocationData = {
+          organization_id: formData.organization_id,
+          visit_limit: formData.visit_limit,
+          period: formData.period,
+          period_start_date: currentDate.toISOString().split('T')[0],
+          period_end_date: endDate.toISOString().split('T')[0],
+          visits_used: 0,
+        };
 
-      if (error) {
-        console.error('Allocation creation error:', error);
-        throw error;
+        console.log('Creating allocation with data:', allocationData);
+
+        const { data, error } = await supabase
+          .from('allocations')
+          .insert(allocationData)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Allocation creation error:', error);
+          throw error;
+        }
+
+        console.log('Allocation created successfully:', data);
+        setSuccess('Allocation created successfully!');
       }
-
-      console.log('Allocation created successfully:', data);
-      setSuccess('Allocation created successfully!');
       
       // Reset form after short delay
       setTimeout(() => {
         setShowForm(false);
+        setEditingAllocation(null);
         setSuccess(null);
         setFormData({
           organization_id: '',
@@ -180,6 +259,14 @@ export default function AllocationsPage() {
           <Button
             variant="contained"
             onClick={() => {
+              if (showForm && editingAllocation) {
+                setEditingAllocation(null);
+                setFormData({
+                  organization_id: '',
+                  visit_limit: 20,
+                  period: 'monthly',
+                });
+              }
               setShowForm(!showForm);
               setError(null);
               setSuccess(null);
@@ -224,7 +311,7 @@ export default function AllocationsPage() {
             }}
           >
             <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: '#1e293b' }}>
-              Create New Allocation
+              {editingAllocation ? 'Edit Allocation' : 'Create New Allocation'}
             </Typography>
 
             {error && (
@@ -372,18 +459,21 @@ export default function AllocationsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Progress
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                       Loading...
                     </td>
                   </tr>
                 ) : allocations.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                       No allocations created yet
                     </td>
                   </tr>
@@ -422,6 +512,24 @@ export default function AllocationsPage() {
                             <span className="text-sm text-gray-600">{percentage.toFixed(0)}%</span>
                           </div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditAllocation(allocation)}
+                              sx={{ color: '#E91E63' }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteAllocation(allocation)}
+                              sx={{ color: '#d32f2f' }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </td>
                       </tr>
                     );
                   })
@@ -430,6 +538,25 @@ export default function AllocationsPage() {
             </Box>
           </Box>
         </Box>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+          <DialogTitle>Delete Allocation</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to delete this allocation for {allocationToDelete?.organization?.name || 'this organization'}? 
+              This action cannot be undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={confirmDeleteAllocation} color="error" disabled={saving}>
+              {saving ? <CircularProgress size={20} /> : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </DashboardLayout>
   );

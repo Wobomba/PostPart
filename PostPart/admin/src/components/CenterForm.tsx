@@ -130,7 +130,7 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
         latitude: formData.latitude ? parseFloat(formData.latitude) : null,
         longitude: formData.longitude ? parseFloat(formData.longitude) : null,
         map_link: formData.map_link || null, // Map link for Google Maps, etc.
-        images: images.length > 0 ? images.filter(img => !img.startsWith('data:')) : null, // Exclude data URLs for now
+        images: images.length > 0 ? images.filter(img => img && typeof img === 'string' && !img.startsWith('data:')) : null, // Exclude data URLs for now
         is_verified: formData.is_verified,
         verification_date: formData.is_verified 
           ? (!center?.is_verified ? new Date().toISOString() : center?.verification_date)
@@ -219,7 +219,7 @@ export default function CenterForm({ center, onSuccess, onCancel }: CenterFormPr
             const uploadedImages: string[] = [];
             for (let i = 0; i < images.length; i++) {
               const img = images[i];
-              if (img.startsWith('data:')) {
+              if (img && typeof img === 'string' && img.startsWith('data:')) {
                 // Convert data URL to File and upload
                 const response = await fetch(img);
                 const blob = await response.blob();
