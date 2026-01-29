@@ -135,6 +135,26 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
       
       console.log('📋 Profile query result:', { profileData, profileError: profileError?.message });
 
+      // Check if user is active before loading data
+      const isActive = profileData?.status === 'active';
+      if (!isActive && profileData) {
+        console.log('⚠️ User is not active, skipping data load. Status:', profileData.status);
+        // Still set profile and userName, but don't load other data
+        if (profileData) {
+          const profile: UserProfile = {
+            id: profileData.id,
+            full_name: profileData.full_name || '',
+            organization_id: profileData.organization_id,
+            status: profileData.status,
+          };
+          setProfile(profile);
+          if (profileData.full_name?.trim()) {
+            setUserName(profileData.full_name.trim());
+          }
+        }
+        return; // Exit early if user is not active
+      }
+
       if (profileError) {
         // PGRST116 means "no rows found" - profile doesn't exist yet, which is OK
         if (profileError.code === 'PGRST116') {
@@ -158,21 +178,21 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
           }
           // Don't return - continue loading other data even if profile doesn't exist
         } else {
-          // Handle network errors gracefully
-          if (profileError.message?.includes('network') || profileError.message?.includes('fetch') || profileError.message?.includes('Network request failed')) {
-            console.warn('Network error loading profile, using cached data:', profileError.message);
-            // Try to get name from auth metadata as fallback
-            try {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user) {
-                const authName = user.user_metadata?.full_name || user.user_metadata?.name;
-                if (authName && userName === 'Parent') {
-                  setUserName(authName);
-                }
+        // Handle network errors gracefully
+        if (profileError.message?.includes('network') || profileError.message?.includes('fetch') || profileError.message?.includes('Network request failed')) {
+          console.warn('Network error loading profile, using cached data:', profileError.message);
+          // Try to get name from auth metadata as fallback
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const authName = user.user_metadata?.full_name || user.user_metadata?.name;
+              if (authName && userName === 'Parent') {
+                setUserName(authName);
               }
-            } catch (authError) {
-              // Ignore auth errors
             }
+          } catch (authError) {
+            // Ignore auth errors
+          }
             // Don't return - continue loading other data
           } else {
             // For other errors, log but don't throw - use fallback
@@ -323,7 +343,7 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
             console.warn('⚠️ Network error loading check-ins, using cached data:', checkInsError.message);
           } else {
             console.error('❌ Error loading check-ins (non-network):', checkInsError);
-          }
+        }
         } else if (recentCheckInsData) {
           setRecentCheckIns(recentCheckInsData);
           console.log('✅ Recent check-ins loaded:', recentCheckInsData.length);
@@ -460,11 +480,11 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
       // Load featured centers
       try {
         const { data: centersData, error: centersError } = await supabase
-          .from('centers')
-          .select('*')
-          .eq('is_verified', true)
-          .order('name')
-          .limit(2);
+        .from('centers')
+        .select('*')
+        .eq('is_verified', true)
+        .order('name')
+        .limit(2);
 
         console.log('🏢 Featured centers query result:', { count: centersData?.length || 0, error: centersError?.message });
 
@@ -475,9 +495,9 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
             console.error('❌ Error loading featured centers:', centersError);
           }
         } else if (centersData) {
-          setFeaturedCenters(centersData);
+        setFeaturedCenters(centersData);
           console.log('✅ Featured centers loaded:', centersData.length);
-          if (!skipCache) await Cache.set(CacheKeys.FEATURED_CENTERS, centersData);
+        if (!skipCache) await Cache.set(CacheKeys.FEATURED_CENTERS, centersData);
         }
       } catch (error: any) {
         console.error('❌ Exception loading featured centers:', error);
@@ -505,6 +525,20 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
       }
     }
   }, []);
+
+  const getUserId = useCallback(async () => {
+    if (user?.id) return user.id;
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        setUser({ id: authUser.id, email: authUser.email });
+        return authUser.id;
+      }
+    } catch (error) {
+      console.error('Error getting auth user for refresh:', error);
+    }
+    return null;
+  }, [user]);
 
   // Initial load: cache first, then fresh data
   useEffect(() => {
@@ -580,105 +614,184 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
     initialize();
   }, [loadCachedData, loadFreshData]);
 
+  // Listen for auth state changes (especially SIGNED_OUT)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔐 Auth state changed:', event, session ? 'has session' : 'no session');
+      
+      if (event === 'SIGNED_OUT' || !session) {
+        console.log('🚪 User signed out, clearing user state and data');
+        // Clear all user-related state
+        setUser(null);
+        setProfile(null);
+        setUserName('Parent');
+        setChildren([]);
+        setStats({
+          centersVisited: 0,
+          totalCheckIns: 0,
+          unreadNotifications: 0,
+        });
+        setRecentCheckIns([]);
+        setActiveCheckIn(null);
+        setFeaturedCenters([]);
+        setFrequentCenters([]);
+        // Clear cache
+        try {
+          await Cache.clear();
+        } catch (error) {
+          console.error('Error clearing cache on logout:', error);
+        }
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        // User signed in - set user state
+        setUser({ id: session.user.id, email: session.user.email });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // Set up realtime subscriptions
   useEffect(() => {
     if (!user) return;
 
     const setupSubscriptions = async () => {
+      // Verify user is still authenticated before setting up subscriptions
+      try {
+        const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+        if (authError || !currentUser || currentUser.id !== user.id) {
+          console.log('⚠️ User not authenticated, skipping subscription setup');
+          return;
+        }
+      } catch (error) {
+        console.warn('⚠️ Error verifying auth before subscriptions:', error);
+        return;
+      }
+
       // Subscribe to check-ins
-      const checkInsChannel = supabase
-        .channel('user-checkins-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'checkins',
-            filter: `parent_id=eq.${user.id}`,
-          },
-          () => {
-            // Refresh check-ins and stats when changes occur
-            loadFreshData(user.id, true);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Check-ins subscription active');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Check-ins subscription error');
-          }
-        });
+      let checkInsChannel: any = null;
+      try {
+        checkInsChannel = supabase
+          .channel('user-checkins-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'checkins',
+              filter: `parent_id=eq.${user.id}`,
+            },
+            () => {
+              // Verify user is still authenticated before refreshing
+              supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
+                if (currentUser && currentUser.id === user.id) {
+                  loadFreshData(user.id, true);
+                }
+              });
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Check-ins subscription active');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.warn('⚠️ Check-ins subscription error (non-critical, will use polling fallback)');
+            }
+          });
+      } catch (error) {
+        console.warn('⚠️ Error setting up check-ins subscription:', error);
+      }
 
       // Subscribe to notifications
-      const notificationsChannel = supabase
-        .channel('user-notifications-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'parent_notifications',
-            filter: `parent_id=eq.${user.id}`,
-          },
-          () => {
-            // Refresh notification count
-            refreshStats();
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Notifications subscription active');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Notifications subscription error');
-          }
-        });
+      let notificationsChannel: any = null;
+      try {
+        notificationsChannel = supabase
+          .channel('user-notifications-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'parent_notifications',
+              filter: `parent_id=eq.${user.id}`,
+            },
+            () => {
+              // Verify user is still authenticated before refreshing
+              supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
+                if (currentUser && currentUser.id === user.id) {
+                  refreshStats();
+                }
+              });
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Notifications subscription active');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.warn('⚠️ Notifications subscription error (non-critical, will use polling fallback)');
+            }
+          });
+      } catch (error) {
+        console.warn('⚠️ Error setting up notifications subscription:', error);
+      }
 
       // Subscribe to profile changes (for when account is activated/updated/suspended)
-      const profileChannel = supabase
-        .channel('user-profile-changes')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${user.id}`,
-          },
-          async (payload) => {
-            // Refresh profile data when profile is updated (e.g., account activated, status changed)
-            console.log('🔄 Profile updated, refreshing data:', payload);
-            console.log('📝 Status changed:', payload.new?.status, '→', payload.old?.status);
-            console.log('🏢 Organization ID changed:', payload.new?.organization_id, '→', payload.old?.organization_id);
-            
-            // Check if account was just activated (status changed from inactive/null to active)
-            const wasInactive = !payload.old?.status || payload.old?.status === 'inactive';
-            const isNowActive = payload.new?.status === 'active';
-            const justActivated = wasInactive && isNowActive;
-            
-            if (justActivated) {
-              console.log('✅ Account just activated! Forcing immediate data refresh...');
-              // Force immediate refresh of all data when account is activated
-              // The profile state update will trigger useEffect hooks in components
-              await loadFreshData(user.id, true);
-            } else {
-              // For other updates, refresh data normally
-              loadFreshData(user.id, true);
+      let profileChannel: any = null;
+      try {
+        profileChannel = supabase
+          .channel('user-profile-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${user.id}`,
+            },
+            async (payload) => {
+              // Verify user is still authenticated before processing
+              const { data: { user: currentUser } } = await supabase.auth.getUser();
+              if (!currentUser || currentUser.id !== user.id) {
+                return;
+              }
+              
+              // Refresh profile data when profile is updated (e.g., account activated, status changed)
+              console.log('🔄 Profile updated, refreshing data:', payload);
+              console.log('📝 Status changed:', payload.new?.status, '→', payload.old?.status);
+              console.log('🏢 Organization ID changed:', payload.new?.organization_id, '→', payload.old?.organization_id);
+              
+              // Check if account was just activated (status changed from inactive/null to active)
+              const wasInactive = !payload.old?.status || payload.old?.status === 'inactive';
+              const isNowActive = payload.new?.status === 'active';
+              const justActivated = wasInactive && isNowActive;
+              
+              if (justActivated) {
+                console.log('✅ Account just activated! Forcing immediate data refresh...');
+                // Force immediate refresh of all data when account is activated
+                // The profile state update will trigger useEffect hooks in components
+                await loadFreshData(user.id, true);
+              } else {
+                // For other updates, refresh data normally
+                loadFreshData(user.id, true);
+              }
+              
+              // If organization_id changed, we need to re-subscribe to the new organization
+              if (payload.new?.organization_id !== payload.old?.organization_id) {
+                console.log('🔄 Organization ID changed, will re-subscribe on next profile load');
+              }
             }
-            
-            // If organization_id changed, we need to re-subscribe to the new organization
-            if (payload.new?.organization_id !== payload.old?.organization_id) {
-              console.log('🔄 Organization ID changed, will re-subscribe on next profile load');
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('✅ Profile subscription active');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.warn('⚠️ Profile subscription error (non-critical, will use polling fallback)');
+              // If subscription fails, the periodic refresh will still work
             }
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Profile subscription active');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Profile subscription error - will rely on polling fallback');
-            // If subscription fails, the periodic refresh will still work
-          }
-        });
+          });
+      } catch (error) {
+        console.warn('⚠️ Error setting up profile subscription:', error);
+      }
 
       // Subscribe to organization changes (for when organization status changes)
       // We need to get the organization_id first, then subscribe
@@ -701,31 +814,41 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
 
           if (profileData?.organization_id) {
             console.log('🔔 Setting up organization subscription for org:', profileData.organization_id);
-            orgChannel = supabase
-              .channel(`user-organization-changes-${user.id}`)
-              .on(
-                'postgres_changes',
-                {
-                  event: 'UPDATE',
-                  schema: 'public',
-                  table: 'organizations',
-                  filter: `id=eq.${profileData.organization_id}`,
-                },
-                (payload) => {
-                  // Organization status changed - refresh all data
-                  console.log('🏢 Organization updated, refreshing data:', payload);
-                  console.log('📝 Organization status changed:', payload.new?.status, '→', payload.old?.status);
-                  // Force refresh all data including profile and status
-                  loadFreshData(user.id, true);
-                }
-              )
-              .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                  console.log('✅ Organization subscription active');
-                } else if (status === 'CHANNEL_ERROR') {
-                  console.error('❌ Organization subscription error - will rely on polling fallback');
-                }
-              });
+            try {
+              orgChannel = supabase
+                .channel(`user-organization-changes-${user.id}`)
+                .on(
+                  'postgres_changes',
+                  {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'organizations',
+                    filter: `id=eq.${profileData.organization_id}`,
+                  },
+                  async (payload) => {
+                    // Verify user is still authenticated before processing
+                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    if (!currentUser || currentUser.id !== user.id) {
+                      return;
+                    }
+                    
+                    // Organization status changed - refresh all data
+                    console.log('🏢 Organization updated, refreshing data:', payload);
+                    console.log('📝 Organization status changed:', payload.new?.status, '→', payload.old?.status);
+                    // Force refresh all data including profile and status
+                    loadFreshData(user.id, true);
+                  }
+                )
+                .subscribe((status) => {
+                  if (status === 'SUBSCRIBED') {
+                    console.log('✅ Organization subscription active');
+                  } else if (status === 'CHANNEL_ERROR') {
+                    console.warn('⚠️ Organization subscription error (non-critical, will use polling fallback)');
+                  }
+                });
+            } catch (error) {
+              console.warn('⚠️ Error setting up organization subscription:', error);
+            }
           } else {
             console.log('ℹ️ No organization_id found, skipping organization subscription');
           }
@@ -743,18 +866,30 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
 
       return () => {
         console.log('🧹 Cleaning up subscriptions');
-        supabase.removeChannel(checkInsChannel);
-        supabase.removeChannel(notificationsChannel);
-        supabase.removeChannel(profileChannel);
-        if (orgChannel) {
-          supabase.removeChannel(orgChannel);
+        try {
+          if (checkInsChannel) {
+            supabase.removeChannel(checkInsChannel);
+          }
+          if (notificationsChannel) {
+            supabase.removeChannel(notificationsChannel);
+          }
+          if (profileChannel) {
+            supabase.removeChannel(profileChannel);
+          }
+          if (orgChannel) {
+            supabase.removeChannel(orgChannel);
+          }
+        } catch (error) {
+          console.warn('⚠️ Error cleaning up subscriptions:', error);
         }
       };
     };
 
     const cleanup = setupSubscriptions();
     return () => {
-      cleanup.then(fn => fn && fn());
+      cleanup.then(fn => fn && fn()).catch(err => {
+        console.warn('⚠️ Error in subscription cleanup:', err);
+      });
     };
   }, [user, loadFreshData]);
 
@@ -809,41 +944,53 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
   }, [user, loadFreshData]);
 
   const refreshData = useCallback(async () => {
-    if (!user) return;
+    const userId = await getUserId();
+    if (!userId) return;
     setRefreshing(true);
-    await loadFreshData(user.id, true); // Skip cache on manual refresh
+    await loadFreshData(userId, true); // Skip cache on manual refresh
     setRefreshing(false);
-  }, [user, loadFreshData]);
+  }, [getUserId, loadFreshData]);
 
   const refreshChildren = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('children')
-      .select('*')
-      .eq('parent_id', user.id)
-      .order('date_of_birth', { ascending: false });
-    if (data) {
-      setChildren(data);
-      await Cache.set(CacheKeys.USER_CHILDREN, data);
+    const userId = await getUserId();
+    if (!userId) return;
+    try {
+      const { data, error } = await supabase
+        .from('children')
+        .select('*')
+        .eq('parent_id', userId)
+        .order('date_of_birth', { ascending: false });
+      if (error) {
+        console.error('Error refreshing children:', error);
+        return;
+      }
+      if (data) {
+        setChildren(data);
+        await Cache.set(CacheKeys.USER_CHILDREN, data);
+      }
+    } catch (error) {
+      console.error('Error refreshing children (exception):', error);
     }
-  }, [user]);
+  }, [getUserId]);
 
   const refreshCheckIns = useCallback(async () => {
-    if (!user) return;
-    await loadFreshData(user.id, true);
-  }, [user, loadFreshData]);
+    const userId = await getUserId();
+    if (!userId) return;
+    await loadFreshData(userId, true);
+  }, [getUserId, loadFreshData]);
 
   const refreshStats = useCallback(async () => {
-    if (!user) return;
+    const userId = await getUserId();
+    if (!userId) return;
     const [checkInsResult, notificationsResult] = await Promise.all([
       supabase
         .from('checkins')
         .select('center_id')
-        .eq('parent_id', user.id),
+        .eq('parent_id', userId),
       supabase
         .from('parent_notifications')
         .select('id')
-        .eq('parent_id', user.id)
+        .eq('parent_id', userId)
         .eq('is_read', false),
     ]);
 
@@ -858,7 +1005,7 @@ export function UserDataProvider({ children: propsChildren }: { children: React.
     };
     setStats(newStats);
     await Cache.set(CacheKeys.USER_STATS, newStats);
-  }, [user]);
+  }, [getUserId]);
 
   const clearCache = useCallback(async () => {
     await Cache.clear();
