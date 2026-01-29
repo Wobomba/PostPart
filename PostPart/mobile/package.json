@@ -29,6 +29,8 @@
     "@react-native-masked-view/masked-view": "0.3.2",
     "@react-navigation/native": "^7.1.26",
     "@supabase/supabase-js": "^2.89.0",
+    "@tanstack/react-query": "^5.90.20",
+    "@tanstack/react-query-devtools": "^5.91.2",
     "expo": "~54.0.30",
     "expo-camera": "^17.0.10",
     "expo-constants": "^18.0.12",
